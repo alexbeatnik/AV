@@ -1,0 +1,23 @@
+name: Tests
+
+# Runs on every pull request (and on demand): builds the app to catch compile
+# breaks, then builds and runs the unit tests via test.ps1. A failing test
+# fails the check on the PR.
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build the app
+        shell: pwsh
+        run: .\build.ps1
+
+      - name: Build and run unit tests
+        shell: pwsh
+        run: .\test.ps1

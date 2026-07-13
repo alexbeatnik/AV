@@ -1,0 +1,18 @@
+# Portable ClamAV (219 MB of binaries + database) — downloaded separately, see README
+clamav/
+
+# YARA engine + rules — downloaded automatically (yara64.exe, YARA Forge rules)
+yara/
+
+# Build artifacts
+AV.exe
+AV.update.exe
+AVUI.Tests.exe
+*.pdb
+
+# Local user settings
+settings.ini
+scans.log
+
+# Quarantine (infected files)
+quarantine/

@@ -1,0 +1,70 @@
+name: Release
+
+# Builds AV.exe and publishes it as a GitHub Release whenever the version
+# in src/AssemblyInfo.cs's AssemblyVersion changes on main. Safe to run on every
+# push: it no-ops if a release for the current version already exists. Can also
+# be triggered manually to (re)build and publish the current version on demand.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version from src/AssemblyInfo.cs
+        id: version
+        shell: pwsh
+        run: |
+          $content = Get-Content src/AssemblyInfo.cs -Raw
+          if ($content -notmatch 'AssemblyVersion\("([\d.]+)\.\d+"\)') {
+            Write-Error "Could not find AssemblyVersion in src/AssemblyInfo.cs"
+            exit 1
+          }
+          $ver = $matches[1]
+          Write-Host "Version: $ver"
+          "version=$ver" >> $env:GITHUB_OUTPUT
+          "tag=v$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Skip if this version was already released
+        id: check
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${{ steps.version.outputs.tag }}" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release ${{ steps.version.outputs.tag }} already exists, skipping."
+            "skip=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Host "No release yet for ${{ steps.version.outputs.tag }} — will create one."
+            "skip=false" >> $env:GITHUB_OUTPUT
+          }
+          # pwsh steps exit with the last-seen $LASTEXITCODE, which `gh release view`
+          # deliberately left non-zero above (that's how we detect "no release yet") —
+          # without this the step itself would be reported as failed.
+          exit 0
+
+      - name: Build AV.exe
+        if: steps.check.outputs.skip == 'false'
+        shell: pwsh
+        run: .\build.ps1
+
+      - name: Create tag and GitHub Release
+        if: steps.check.outputs.skip == 'false'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" AV.exe `
+            --title "${{ steps.version.outputs.tag }}" `
+            --generate-notes
