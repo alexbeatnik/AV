@@ -17,7 +17,10 @@ namespace AVUI
 {
     public partial class MainForm : Form
     {
-        const string AppName = "AV";
+        // Display name only. Technical identifiers (AV.exe, %LocalAppData%\Programs\AV,
+        // the Run/uninstall registry names, the mutex, the release asset name) stay "AV"
+        // so installed copies and self-update keep working.
+        const string AppName = "Antivirus AV";
         static readonly string AppVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(3);
         const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
         const string RunValueName = "AV";

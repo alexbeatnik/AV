@@ -131,9 +131,9 @@ namespace AVUI
             using (var k = Registry.CurrentUser.CreateSubKey(
                 @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\AV"))
             {
-                k.SetValue("DisplayName", "AV");
+                k.SetValue("DisplayName", "Antivirus AV");
                 k.SetValue("DisplayVersion", AppVersion);
-                k.SetValue("Publisher", "AV");
+                k.SetValue("Publisher", "Antivirus AV");
                 k.SetValue("DisplayIcon", dstExe);
                 k.SetValue("InstallLocation", dst);
                 k.SetValue("UninstallString", "\"" + dstExe + "\" --uninstall");

@@ -40,11 +40,11 @@ namespace AVUI
         static Lang()
         {
             // Install / uninstall
-            A("install.title", "AV — Setup", "AV — встановлення");
-            A("install.installing", "Installing AV…", "Встановлюю AV…");
+            A("install.title", "Antivirus AV — Setup", "Antivirus AV — встановлення");
+            A("install.installing", "Installing Antivirus AV…", "Встановлюю Antivirus AV…");
             A("install.failed", "Installation failed:\r\n", "Не вдалося встановити:\r\n");
-            A("uninstall.confirm", "Remove AV along with ClamAV, the signature database and quarantine?", "Видалити AV разом із ClamAV, базами сигнатур і карантином?");
-            A("uninstall.done", "AV has been removed.", "AV видалено.");
+            A("uninstall.confirm", "Remove Antivirus AV along with ClamAV, the signature database and quarantine?", "Видалити Antivirus AV разом із ClamAV, базами сигнатур і карантином?");
+            A("uninstall.done", "Antivirus AV has been removed.", "Antivirus AV видалено.");
             A("uninstall.error", "Removal error: ", "Помилка видалення: ");
 
             // Main window chrome
@@ -331,13 +331,13 @@ namespace AVUI
             A("status.scanInterrupted", "Scan interrupted or an error occurred (code {0}).", "Сканування перервано або сталася помилка (код {0}).");
 
             // Install / download ClamAV
-            A("msg.firstRunModeChoice", "Welcome! How do you want to use AV?\r\n\r\n"
+            A("msg.firstRunModeChoice", "Welcome! How do you want to use Antivirus AV?\r\n\r\n"
                 + "YES — install for this user (recommended): the app copies itself to\r\n{1}\r\n"
                 + "together with everything it downloads, adds Start Menu/Desktop shortcuts and an\r\n"
                 + "\"Apps\" entry. No administrator rights are needed.\r\n\r\n"
                 + "NO — portable mode: everything (ClamAV, signature database, quarantine, settings)\r\n"
                 + "stays in the current folder:\r\n{0}",
-                "Вітаю! Як використовувати AV?\r\n\r\n"
+                "Вітаю! Як використовувати Antivirus AV?\r\n\r\n"
                 + "ТАК — встановити для цього користувача (рекомендовано): програма скопіюється в\r\n{1}\r\n"
                 + "разом з усім, що завантажить, додасть ярлики в Пуск, на робочий стіл і запис у\r\n"
                 + "«Програмах». Права адміністратора не потрібні.\r\n\r\n"
@@ -430,11 +430,11 @@ namespace AVUI
             A("hero.dbFrom", "Signature database from {0}", "Бази сигнатур від {0}");
             A("hero.dbNeeded", "Signature database needed", "Потрібні бази сигнатур");
             A("hero.pressUpdateFirstTime", "Press \"Update Database\" — first download is ~250 MB", "Натисни «Оновити бази» — перший раз завантажиться ~250 МБ");
-            A("tray.appUpdateInstalling", "Updating AV to {0} — the app will restart in a few seconds…", "Оновлюю AV до {0} — програма перезапуститься за кілька секунд…");
+            A("tray.appUpdateInstalling", "Updating Antivirus AV to {0} — the app will restart in a few seconds…", "Оновлюю Antivirus AV до {0} — програма перезапуститься за кілька секунд…");
             A("stats.neverScanned", "never", "ще не було");
             // About dialog
             A("btn.about", "ABOUT", "ПРО ПРОГРАМУ");
-            A("about.title", "About AV", "Про AV");
+            A("about.title", "About Antivirus AV", "Про Antivirus AV");
             // no "&" here: a Label eats it as a mnemonic marker
             A("about.version", "Version {0} — free, open source, Apache 2.0 license", "Версія {0} — безкоштовна, відкритий код, ліцензія Apache 2.0");
             A("about.desc", "A lightweight, portable multi-engine antivirus for Windows: the ClamAV signature "

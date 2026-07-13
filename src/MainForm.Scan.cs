@@ -514,6 +514,9 @@ namespace AVUI
                 foreach (string r in rootsCopy)
                 {
                     if (File.Exists(r)) { if (!excluded(r) && seen.Add(r)) files.Add(r); }
+                    // roots are followed even when they are junctions/symlinks — a folder
+                    // the user explicitly picked must be scanned. A root is entered once,
+                    // and every child link below is skipped, so no cycle can form.
                     else if (Directory.Exists(r)) stack.Push(r);
                 }
                 DateTime lastUi = DateTime.MinValue;

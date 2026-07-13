@@ -77,7 +77,7 @@ namespace AVUI
 
         void BuildUi()
         {
-            // Header: ClamAV logo + name on the left, horizontal nav tabs on the right.
+            // Header: the AV mark on the left, horizontal nav tabs on the right.
             // (Not a left icon rail — see the note on NavTab for why.)
             var title = new Panel();
             title.Dock = DockStyle.Top;
