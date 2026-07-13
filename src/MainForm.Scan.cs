@@ -389,6 +389,7 @@ namespace AVUI
         {
             scanRunning = true;
             monitorScan = false;
+            cancelScanListing = false; // a Stop from a previous scan must not leak into this one
             scannedCount = 0;
             foundCount = 0;
             movedCount = 0;
@@ -529,7 +530,17 @@ namespace AVUI
                             if (seen.Add(f)) files.Add(f);
                         }
                         foreach (string sub in Directory.GetDirectories(d))
+                        {
+                            // don't follow junctions/symlinks: cyclic links (the legacy
+                            // "Application Data" junctions, mklink loops) would spin the
+                            // walk forever and list the same content twice
+                            try
+                            {
+                                if ((File.GetAttributes(sub) & FileAttributes.ReparsePoint) != 0) continue;
+                            }
+                            catch { continue; }
                             stack.Push(sub);
+                        }
                     }
                     catch { } // no access — skip
                     listedCount = files.Count;
@@ -1021,6 +1032,7 @@ namespace AVUI
             string original = line.Substring(0, idx);
             string moved = line.Substring(idx + 12, line.Length - idx - 13);
             movedCount++;
+            totalMoved++; // every other quarantine path goes through QuarantineFile, which counts itself
             // clamscan dropped the raw infected file into quarantine — neutralize it
             // right away (see QuarExt); if that fails, the reload sweep retries later
             string finalName = Path.GetFileName(moved);
@@ -1091,7 +1103,9 @@ namespace AVUI
                 totalScans++;
                 totalFilesScanned += scannedCount;
                 totalFound += foundCount;
-                totalMoved += movedCount;
+                // totalMoved is counted at each actual move (QuarantineFile /
+                // RecordQuarantineMove) — adding movedCount here would double-count
+                // the YARA-phase auto-quarantines
                 lastScanInfo = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
                 SaveSettings();
                 UpdateStatsUi();

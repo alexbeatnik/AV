@@ -197,7 +197,9 @@ namespace AVUI
         // second pass with yara64 before the scan is finalized.
         void OnScanExit(int exitCode)
         {
-            if (!yaraPhasePending || !YaraReady() || yaraListPath == null || !File.Exists(yaraListPath))
+            // cancelScanListing doubles as the scan-wide cancel flag (StopCurrent sets
+            // it): a stopped scan must not continue into the YARA phase
+            if (!yaraPhasePending || cancelScanListing || !YaraReady() || yaraListPath == null || !File.Exists(yaraListPath))
             {
                 yaraPhasePending = false;
                 FinishScan(exitCode);
