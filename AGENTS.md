@@ -9,8 +9,8 @@ Licensed under Apache 2.0 (`LICENSE`).
 ## Build & test
 
 ```powershell
-.\build.ps1   # builds ClamAVUI.exe with C:\Windows\Microsoft.NET\...\csc.exe
-.\test.ps1    # compiles src\ + tests\ into ClamAVUI.Tests.exe and runs it
+.\build.ps1   # builds AV.exe with C:\Windows\Microsoft.NET\...\csc.exe
+.\test.ps1    # compiles src\ + tests\ into AVUI.Tests.exe and runs it
 ```
 
 Run **both** after every change. There is no .sln/.csproj and there must not

@@ -1,4 +1,4 @@
-# AV
+# Antivirus AV
 
 A lightweight **multi-engine antivirus for Windows**. Three layers of detection
 in one ~250 KB portable exe with **zero dependencies and zero toolchains** —
@@ -19,7 +19,6 @@ Based on [ClamAV-WindowsUI](https://github.com/alexbeatnik/ClamAV-WindowsUI).
 The interface is available in **English** (default) and **Ukrainian**,
 switchable anytime from Settings.
 
-> The name **AV** is temporary — a proper name and logo are still being chosen.
 
 ## How the three engines work together
 

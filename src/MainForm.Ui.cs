@@ -77,32 +77,27 @@ namespace AVUI
 
         void BuildUi()
         {
-            // Header: ClamAV logo + name on the left, horizontal nav tabs on the right.
+            // Header: the AV mark on the left, horizontal nav tabs on the right.
             // (Not a left icon rail — see the note on NavTab for why.)
             var title = new Panel();
             title.Dock = DockStyle.Top;
             title.Height = 78;
             title.BackColor = Theme.Bg;
+            // Just the textless shield: the app name already sits in the window title
+            // bar right above — repeating it next to the logo read as "AV AV AV"
             var logo = new PictureBox();
-            logo.Image = LogoImage; // just the shield — the name is drawn as text next to it
+            logo.Image = LogoImage;
             logo.SizeMode = PictureBoxSizeMode.Zoom;
             logo.Size = new Size(64, 64);
             logo.Location = new Point(24, 7);
             logo.BackColor = Color.Transparent;
-            var titleText = new Label();
-            titleText.Text = "AV";
-            titleText.Font = new Font("Segoe UI Semibold", 17f);
-            titleText.ForeColor = Theme.Text;
-            titleText.AutoSize = true;
-            titleText.Location = new Point(98, 20);
             var verText = new Label();
             verText.Text = "v" + AppVersion;
             verText.Font = new Font("Segoe UI", 8f); // small and quiet — it's a detail, not a headline
             verText.ForeColor = Theme.Muted;
             verText.AutoSize = true;
-            verText.Location = new Point(101, 52);
+            verText.Location = new Point(96, 33); // vertically centered on the shield
             title.Controls.Add(logo);
-            title.Controls.Add(titleText);
             title.Controls.Add(verText);
 
             var navBar = new FlowLayoutPanel();
