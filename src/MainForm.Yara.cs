@@ -237,15 +237,30 @@ namespace AVUI
             // On Windows, yara64.exe expects the --scan-list file to be encoded in
             // UTF-16 LE (Unicode without BOM) and writes match results to stdout
             // in UTF-8. Re-encode our temporary file list to UTF-16 LE.
+            //
+            // Additionally, yara64.exe opens files via the ANSI code page (fopen), so
+            // we filter out paths that cannot round-trip through the default ANSI encoding,
+            // otherwise they cannot be opened anyway and would cause unreadable error logs.
             string scanList = yaraListPath;
+            int unsupported = 0;
             try
             {
                 var unicodeWithoutBom = new UnicodeEncoding(false, false);
-                var paths = File.ReadAllLines(yaraListPath);
+                var raw = File.ReadAllLines(yaraListPath);
+                var safe = AnsiSafePaths(new List<string>(raw), Encoding.Default, out unsupported);
+                if (safe.Count == 0)
+                {
+                    // nothing yara can even open — don't spawn it just to fail
+                    AppendLog(string.Format(Lang.T("log.yaraPathsSkipped"), unsupported), Theme.Warn, "WARN", true);
+                    FinishScan(clamCode);
+                    return;
+                }
                 string unicodeList = Path.Combine(Path.GetTempPath(), "av-yara-" + Guid.NewGuid().ToString("N") + ".txt");
-                File.WriteAllLines(unicodeList, paths, unicodeWithoutBom);
+                File.WriteAllLines(unicodeList, safe.ToArray(), unicodeWithoutBom);
                 batchListPaths.Add(unicodeList); // cleaned with the other scan lists
                 scanList = unicodeList;
+                if (unsupported > 0)
+                    AppendLog(string.Format(Lang.T("log.yaraPathsSkipped"), unsupported), Theme.Warn, "WARN", true);
             }
             catch { } // fall back to the shared UTF-8 list — worst case is the old behavior
 

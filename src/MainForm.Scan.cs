@@ -166,7 +166,8 @@ namespace AVUI
             }
             if (yaraRunning)
             {
-                AppendLog(string.Format(Lang.T("log.hbYara"), DateTime.Now, elapsed), Theme.Muted, "SCAN", false);
+                string yaraElapsed = yaraPhaseStart != DateTime.MinValue ? FormatSpan(DateTime.Now - yaraPhaseStart) : elapsed;
+                AppendLog(string.Format(Lang.T("log.hbYara"), DateTime.Now, yaraElapsed), Theme.Muted, "SCAN", false);
                 return;
             }
             bool stalled = (DateTime.Now - lastScanOutput).TotalSeconds >= 9; // no new output

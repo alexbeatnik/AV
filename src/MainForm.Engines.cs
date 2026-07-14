@@ -40,7 +40,7 @@ namespace AVUI
                 };
 
                 // ---- Card 1: ClamAV (the core engine — no toggle, status only) ----
-                var cardClam = new CardPanel("ClamAV");
+                var cardClam = new CardPanel(Lang.T("stat.clamav"));
                 cardClam.SetBounds(24, 16, 592, 118);
 
                 var clamStatus = mkLabel(16, 42);
@@ -85,7 +85,7 @@ namespace AVUI
                 cardClam.Controls.Add(clamNote);
 
                 // ---- Card 2: YARA ----
-                var cardYara = new CardPanel("YARA");
+                var cardYara = new CardPanel(Lang.T("stat.yara"));
                 cardYara.SetBounds(24, 146, 592, 180);
 
                 var yaraStatus = mkLabel(16, 42);
@@ -155,7 +155,7 @@ namespace AVUI
                 cardYara.Controls.Add(yaraHint);
 
                 // ---- Card 3: VirusTotal ----
-                var cardVt = new CardPanel("VirusTotal");
+                var cardVt = new CardPanel(Lang.T("stat.virustotal"));
                 cardVt.SetBounds(24, 338, 592, 296);
 
                 var vtStatus = mkLabel(16, 42);
