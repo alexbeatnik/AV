@@ -356,5 +356,52 @@ namespace AVUI
             try { Process.Start("https://www.virustotal.com/gui/file/" + sha256); }
             catch { }
         }
+
+        // ---------- API-key validation (Settings → Engines → TEST KEY) ----------
+
+        // The EICAR test file — a hash VirusTotal certainly knows, so a lookup of
+        // it is a cheap probe of whether an API key is accepted.
+        const string VtEicarSha256 = "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f";
+
+        // Tries one lookup with the given key and reports the outcome; done runs
+        // on the UI thread with (keyWorks, message, color).
+        void VtTestKey(string key, Action<bool, string, Color> done)
+        {
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                int status = 0;
+                string err = null;
+                try
+                {
+                    const System.Net.SecurityProtocolType Tls13 = (System.Net.SecurityProtocolType)12288;
+                    System.Net.ServicePointManager.SecurityProtocol |= System.Net.SecurityProtocolType.Tls12 | Tls13;
+                    var req = (System.Net.HttpWebRequest)System.Net.WebRequest.Create(
+                        "https://www.virustotal.com/api/v3/files/" + VtEicarSha256);
+                    req.Headers["x-apikey"] = key;
+                    req.UserAgent = "AV";
+                    req.Timeout = 15000;
+                    try
+                    {
+                        using (var resp = (System.Net.HttpWebResponse)req.GetResponse())
+                            status = (int)resp.StatusCode;
+                    }
+                    catch (System.Net.WebException we)
+                    {
+                        var resp = we.Response as System.Net.HttpWebResponse;
+                        if (resp != null) status = (int)resp.StatusCode;
+                        else err = we.Message;
+                    }
+                }
+                catch (Exception ex) { err = ex.Message; }
+                bool ok; string msg; Color color;
+                if (status == 200) { ok = true; msg = Lang.T("engines.vtKeyOk"); color = Theme.Good; }
+                else if (status == 401 || status == 403) { ok = false; msg = Lang.T("engines.vtKeyBad"); color = Theme.Danger; }
+                else if (status == 429) { ok = true; msg = Lang.T("engines.vtKeyRate"); color = Theme.Warn; } // quota spent — but the key itself works
+                else { ok = false; msg = string.Format(Lang.T("engines.vtKeyNet"), err != null ? err : "HTTP " + status); color = Theme.Warn; }
+                bool fOk = ok; string fMsg = msg; Color fColor = color;
+                try { BeginInvoke((Action)delegate { done(fOk, fMsg, fColor); }); }
+                catch { } // the form is already closed
+            });
+        }
     }
 }

@@ -481,8 +481,15 @@ namespace AVUI
             A("sval.vtNoKey", "No API key", "Немає ключа");
 
             // YARA engine
-            A("btn.engines", "ENGINES: YARA / VIRUSTOTAL…", "РУШІЇ: YARA / VIRUSTOTAL…");
-            A("engines.title", "Detection engines — YARA & VirusTotal", "Рушії виявлення — YARA і VirusTotal");
+            A("btn.engines", "DETECTION ENGINES…", "РУШІЇ ВИЯВЛЕННЯ…");
+            A("engines.title", "Detection engines — ClamAV, YARA & VirusTotal", "Рушії виявлення — ClamAV, YARA і VirusTotal");
+            A("engines.clamavReady", "Ready: ClamAV {0}, database from {1}", "Готово: ClamAV {0}, база від {1}");
+            A("engines.clamavNoDb", "Database not downloaded yet — press UPDATE DATABASE on the dashboard",
+                "Базу ще не завантажено — натисни ОНОВИТИ БАЗУ на головній сторінці");
+            A("engines.clamavMissing", "ClamAV not found — it is downloaded during the first database update",
+                "ClamAV не знайдено — він завантажиться під час першого оновлення бази");
+            A("engines.clamavCore", "The core signature engine — always on; updates run from the dashboard.",
+                "Основний сигнатурний рушій — завжди увімкнений; оновлення — з головної сторінки.");
             A("settings.yaraEnabled", "Use YARA rules — a second detection engine", "Використовувати YARA-правила — другий рушій виявлення");
             A("engines.yaraStatusReady", "Ready: {0} rule file(s), rules from {1}", "Готово: файлів правил: {0}, правила від {1}");
             A("engines.yaraStatusDownloading", "Downloading the engine and rules…", "Завантажую рушій і правила…");
@@ -512,6 +519,16 @@ namespace AVUI
             // VirusTotal
             A("engines.vtKeyLabel", "API key (free account at virustotal.com):", "API-ключ (безкоштовний акаунт на virustotal.com):");
             A("engines.vtGetKey", "Get a key", "Отримати ключ");
+            A("engines.vtStatusOn", "Ready: hash checks enabled", "Готово: перевірка за хешем увімкнена");
+            A("engines.vtStatusNoKey", "No API key — VirusTotal checks are off", "Немає API-ключа — перевірки VirusTotal не працюють");
+            A("btn.testKey", "TEST KEY", "ПЕРЕВІРИТИ КЛЮЧ");
+            A("engines.vtKeyEmpty", "Enter a key first.", "Спершу введи ключ.");
+            A("engines.vtTesting", "Checking the key…", "Перевіряю ключ…");
+            A("engines.vtKeyOk", "✓ The key works", "✓ Ключ працює");
+            A("engines.vtKeyBad", "Key rejected — copy it again from virustotal.com", "Ключ відхилено — скопіюй його ще раз із virustotal.com");
+            A("engines.vtKeyRate", "The key works, but the minute quota is used up — try again shortly",
+                "Ключ працює, але хвилинну квоту вичерпано — спробуй трохи пізніше");
+            A("engines.vtKeyNet", "No answer from VirusTotal: {0}", "Немає відповіді від VirusTotal: {0}");
             A("settings.vtCheck", "Check suspicious files by SHA256 hash on VirusTotal", "Перевіряти підозрілі файли за SHA256-хешем на VirusTotal");
             A("settings.vtUpload", "Upload files unknown to VirusTotal for analysis", "Завантажувати невідомі VirusTotal файли на аналіз");
             A("engines.vtHint", "Hash checks send only the SHA256 of suspicious files (YARA detections, new files "
@@ -559,6 +576,8 @@ namespace AVUI
                 "{0} переміщено в карантин (можна відновити на сторінці «Карантин»).\r\n");
             A("log.vtPendingGone", "{0} disappeared before the VirusTotal verdict arrived — nothing to do.\r\n",
                 "{0} зник до отримання вердикту VirusTotal — дій не потрібно.\r\n");
+            A("log.phaseTiming", "Engine timing — ClamAV: {0}, YARA: {1}\r\n",
+                "Тривалість фаз — ClamAV: {0}, YARA: {1}\r\n");
         }
     }
 }

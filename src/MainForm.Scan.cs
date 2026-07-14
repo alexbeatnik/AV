@@ -395,6 +395,7 @@ namespace AVUI
             movedCount = 0;
             foundFiles.Clear();
             scanStart = DateTime.Now;
+            yaraPhaseStart = DateTime.MinValue;
             loggedTotal = false;
             lastEta = "";
             rateWinTime = DateTime.MinValue;
@@ -1095,6 +1096,11 @@ namespace AVUI
                     scannedCount, FormatSpan(DateTime.Now - scanStart), foundCount),
                     foundCount > 0 ? Theme.Danger : Theme.Text,
                     foundCount > 0 ? "INFECTED" : "SCAN", false);
+                // what each engine cost: the ClamAV part (listing + signatures) vs the YARA pass
+                if (yaraPhaseStart > scanStart)
+                    AppendLog(string.Format(Lang.T("log.phaseTiming"),
+                        FormatSpan(yaraPhaseStart - scanStart), FormatSpan(DateTime.Now - yaraPhaseStart)),
+                        Theme.Muted, null, false);
                 if (scannedCount < initialFilesToScan)
                 {
                     int skipped = initialFilesToScan - scannedCount;

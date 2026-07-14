@@ -25,6 +25,7 @@ namespace AVUI
         string yaraListPath;              // file list of the current scan, reused for the YARA phase
         bool yaraPhasePending;            // a scan is running and YARA should follow the ClamAV part
         int yaraClamCode;                 // ClamAV exit code, held while the YARA phase runs
+        DateTime yaraPhaseStart;          // when the YARA phase of this scan began (MinValue = didn't run)
         volatile bool yaraRunning;        // the yara64 process is scanning (heartbeat message)
         readonly Dictionary<string, string> yaraMatches
             = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // path → rule
@@ -213,6 +214,7 @@ namespace AVUI
         void RunYaraPhase(int clamCode)
         {
             yaraClamCode = clamCode;
+            yaraPhaseStart = DateTime.Now;
             yaraMatches.Clear();
             if (!monitorScan) AppendSection(Lang.T("section.yara"));
             AppendLog(Lang.T("log.yaraScanning"), monitorScan ? Theme.Muted : Theme.Text, "SCAN", monitorScan);
