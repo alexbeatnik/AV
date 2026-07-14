@@ -32,7 +32,6 @@ builds with the `csc.exe` compiler already built into Windows (.NET Framework
    against 70+ engines; files VirusTotal has never seen can (opt-in) be
    uploaded for analysis.
 
-Based on [ClamAV-WindowsUI](https://github.com/alexbeatnik/ClamAV-WindowsUI).
 The interface is available in **English** (default) and **Ukrainian**,
 switchable anytime from Settings.
 
@@ -156,7 +155,7 @@ Every scanned file follows a multi-stage defense-in-depth security pipeline to i
                      [ Neutralized Quarantine / XOR ]
 ```
 
-## Features (inherited from ClamAV-WindowsUI)
+## Features
 
 - Scan a file, a folder, or the **whole PC**; **Scan RAM** (live process
   memory — catches injected/unpacked code masked on disk); **quick scan** of
