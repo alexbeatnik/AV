@@ -1,5 +1,9 @@
 # Antivirus AV
 
+<p align="center">
+  <img src="logo.png" width="128" alt="Antivirus AV Logo" />
+</p>
+
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows_10_/_11-0078d7.svg)]()
 [![Framework](https://img.shields.io/badge/.NET_Framework-4.8-purple.svg)]()
