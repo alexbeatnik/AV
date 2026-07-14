@@ -19,7 +19,7 @@ namespace AVUI
             using (var dlg = new Form())
             {
                 dlg.Text = Lang.T("engines.title");
-                dlg.ClientSize = new Size(640, 676);
+                dlg.ClientSize = new Size(640, 698);
                 dlg.StartPosition = FormStartPosition.CenterParent;
                 dlg.MinimizeBox = dlg.MaximizeBox = false;
                 dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -41,7 +41,7 @@ namespace AVUI
 
                 // ---- Card 1: ClamAV (the core engine — no toggle, status only) ----
                 var cardClam = new CardPanel("ClamAV");
-                cardClam.SetBounds(24, 16, 592, 96);
+                cardClam.SetBounds(24, 16, 592, 118);
 
                 var clamStatus = mkLabel(16, 42);
                 bool haveDb = DbExists();
@@ -61,16 +61,32 @@ namespace AVUI
                     clamStatus.ForeColor = Theme.Warn;
                 }
 
-                var clamNote = mkLabel(16, 64);
+                // per-database-file versions — the dashboard strip shows only daily
+                var clamDbLine = mkLabel(16, 64);
+                clamDbLine.ForeColor = Theme.Muted;
+                if (haveDb)
+                {
+                    var parts = new List<string>();
+                    foreach (string name in new string[] { "main", "daily", "bytecode" })
+                    {
+                        long ver = LocalCvdVersion(Path.Combine(dbDir, name + ".cvd"));
+                        if (ver == 0) ver = LocalCvdVersion(Path.Combine(dbDir, name + ".cld"));
+                        parts.Add(name + (ver > 0 ? " v" + ver : " —"));
+                    }
+                    clamDbLine.Text = string.Join("  ·  ", parts.ToArray());
+                }
+
+                var clamNote = mkLabel(16, 86);
                 clamNote.Text = Lang.T("engines.clamavCore");
                 clamNote.ForeColor = Theme.Muted;
 
                 cardClam.Controls.Add(clamStatus);
+                cardClam.Controls.Add(clamDbLine);
                 cardClam.Controls.Add(clamNote);
 
                 // ---- Card 2: YARA ----
                 var cardYara = new CardPanel("YARA");
-                cardYara.SetBounds(24, 124, 592, 180);
+                cardYara.SetBounds(24, 146, 592, 180);
 
                 var yaraStatus = mkLabel(16, 42);
                 Action refreshYaraStatus = delegate
@@ -140,7 +156,7 @@ namespace AVUI
 
                 // ---- Card 3: VirusTotal ----
                 var cardVt = new CardPanel("VirusTotal");
-                cardVt.SetBounds(24, 316, 592, 296);
+                cardVt.SetBounds(24, 338, 592, 296);
 
                 var vtStatus = mkLabel(16, 42);
                 if (vtApiKey.Length == 0)

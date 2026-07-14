@@ -474,6 +474,7 @@ namespace AVUI
             A("stat.files", "Files scanned", "Файлів перевірено");
             A("stat.threats", "Threats", "Загроз");
             A("stat.quarantined", "Quarantined", "У карантині");
+            A("stat.database", "Database", "База");
             A("stat.signatures", "Signatures", "Сигнатур");
             A("stat.yara", "YARA rules", "YARA-правила");
             A("stat.virustotal", "VirusTotal", "VirusTotal");
