@@ -60,6 +60,39 @@ namespace AVUI.Tests
             }
         }
 
+        public static void TestSaveErrorKeysExistInBothLanguages()
+        {
+            // save-failure diagnostics moved from hardcoded English into the table
+            string[] keys = { "log.settingsSaveFailed", "log.vtKeySaveFailed" };
+            foreach (string key in keys)
+            {
+                string en, uk;
+                using (new LangScope(Lang.Language.English)) en = Lang.T(key);
+                using (new LangScope(Lang.Language.Ukrainian)) uk = Lang.T(key);
+                Assert.True(en != key, key + " exists in English");
+                Assert.True(uk != key && uk != en, key + " has its own Ukrainian translation");
+                Assert.True(en.Contains("{0}") && uk.Contains("{0}"), key + " keeps {0} in both languages");
+            }
+        }
+
+        public static void TestStaleDbKeysExistInBothLanguages()
+        {
+            // the stale-database hero state (offline UX polish)
+            string[] keys = { "hero.dbStale", "hero.dbStaleSub" };
+            foreach (string key in keys)
+            {
+                string en, uk;
+                using (new LangScope(Lang.Language.English)) en = Lang.T(key);
+                using (new LangScope(Lang.Language.Ukrainian)) uk = Lang.T(key);
+                Assert.True(en != key, key + " exists in English");
+                Assert.True(uk != key && uk != en, key + " has its own Ukrainian translation");
+            }
+            using (new LangScope(Lang.Language.English))
+                Assert.True(Lang.T("hero.dbStaleSub").Contains("{0}"), "hero.dbStaleSub keeps its {0} placeholder (English)");
+            using (new LangScope(Lang.Language.Ukrainian))
+                Assert.True(Lang.T("hero.dbStaleSub").Contains("{0}"), "hero.dbStaleSub keeps its {0} placeholder (Ukrainian)");
+        }
+
         public static void TestFirstRunChoiceKeepsBothPlaceholders()
         {
             // {0} = the portable folder, {1} = the per-user install dir (added in

@@ -237,8 +237,11 @@ namespace AVUI
                         SaveSettings();
                         // the server couldn't be reached (offline / transient failure):
                         // don't claim "up to date", and don't clear an update flag a
-                        // previous successful check may have set — try again tomorrow
-                        if (!checkedOk) return;
+                        // previous successful check may have set — try again tomorrow.
+                        // Still refresh the hero: an app sitting in the tray offline
+                        // must be able to turn the stale-database warning on without
+                        // waiting for a restart or a finished scan
+                        if (!checkedOk) { RefreshDbStatus(); return; }
                         updateAvailable = fresh;
                         RefreshDbStatus(); // shows/hides the update button
                         if (!fresh)

@@ -1,7 +1,24 @@
-# Antivirus AV
+# AV
+
+<p align="center">
+  <img src="logo.png" width="128" alt="AV Logo" />
+</p>
+
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows_10_/_11-0078d7.svg)](https://www.microsoft.com/windows)
+[![Framework](https://img.shields.io/badge/.NET_Framework-4.8-purple.svg)](https://dotnet.microsoft.com/download/dotnet-framework/net48)
+
+<p align="center">
+  <img src="screenshots/dashboard.png" width="400" alt="Dashboard" />
+  <img src="screenshots/logs.png" width="400" alt="Logs" />
+</p>
+<p align="center">
+  <img src="screenshots/quarantine.png" width="400" alt="Quarantine" />
+  <img src="screenshots/settings.png" width="400" alt="Settings" />
+</p>
 
 A lightweight **multi-engine antivirus for Windows**. Three layers of detection
-in one ~250 KB portable exe with **zero dependencies and zero toolchains** —
+in one ~280 KB portable exe with **zero dependencies and zero toolchains** —
 builds with the `csc.exe` compiler already built into Windows (.NET Framework
 4.8, present on Win10/11):
 
@@ -15,27 +32,54 @@ builds with the `csc.exe` compiler already built into Windows (.NET Framework
    against 70+ engines; files VirusTotal has never seen can (opt-in) be
    uploaded for analysis.
 
-Based on [ClamAV-WindowsUI](https://github.com/alexbeatnik/ClamAV-WindowsUI).
 The interface is available in **English** (default) and **Ukrainian**,
 switchable anytime from Settings.
 
-<p align="center">
-  <img src="screenshots/dashboard.png" width="400" alt="Dashboard" />
-  <img src="screenshots/logs.png" width="400" alt="Logs" />
-</p>
-<p align="center">
-  <img src="screenshots/quarantine.png" width="400" alt="Quarantine" />
-  <img src="screenshots/settings.png" width="400" alt="Settings" />
-</p>
+## Why this project?
 
+Windows Defender is excellent, and this project is not intended to replace it. Instead, it serves as a lightweight power-tool demonstrating how distinct, decoupled malware detection systems can be orchestrated under a single portable dashboard entirely built in C# — keeping resource footprint minimal while maximizing coverage with local signatures, local heuristic rules, and cloud reputational vetting.
+
+## Resource & Performance Focus
+* **Executable size:** ~280 KB (single portable EXE, zero dependencies)
+* **Downloads footprint:** ClamAV binary assets and database (~220 MB total) + YARA core ruleset (~15 MB total)
+* **Typical memory profile:**
+  * **While Idle:** < 15 MB RAM (in system tray)
+  * **While Scanning:** ~80 MB RAM for the coordinator UI (`AV.exe`)
+    * *Note:* Scanning spawning sub-processes will allocate memory on demand. The ClamAV resident database backend (`clamd`) uses ~1.2 GB RAM (loaded only for the active scan duration), and the `yara64` heuristic process typically uses ~150 MB RAM while evaluating rules.
+
+## Scan Architecture & Flow
+
+```
+               Scan Input (Disk / RAM / New File Event)
+                                 │
+                        ┌────────┴────────┐
+                        ▼                 ▼
+                     ClamAV              YARA
+                   Signatures         Heuristics
+                        │                 │
+                        └────────┬────────┘
+                                 ▼
+                             Suspicion
+                                 │
+                                 ▼
+                            VirusTotal
+                            Arbitration
+                                 │
+                                 ▼
+                          Threat Decision
+                        ┌────────┴────────┐
+                        ▼                 ▼
+                     Quarantine         Exclusion
+```
 
 ## How the three engines work together
 
 Every scan (manual, quick, full, RAM, and the automatic new-file monitor) runs
 in phases over the exact same file list:
 
-1. **ClamAV** scans the files (via the fast `clamd` daemon with parallel
-   workers, falling back to `clamscan` automatically).
+1. **ClamAV** scans the files (manual scans use the fast `clamd` daemon with
+   parallel workers, falling back to `clamscan` automatically; the small
+   new-file batches from the monitor go straight to `clamscan`).
 2. **YARA** re-checks the same list — including the dumped process memory —
    with `yara64 --scan-list`. A ClamAV detection is a *verdict*; a single
    community-rule match is only a *suspicion* (YARA Forge rules do hit
@@ -69,14 +113,49 @@ The YARA engine (`yara64.exe`, from the official
 Forge *core* rule set are downloaded automatically on first run and the rules
 are refreshed weekly. Custom rules go into `yara\rules\custom\`.
 
-Everything is configured in **Settings → ENGINES: YARA / VIRUSTOTAL…** — the
+Everything is configured in **Settings → DETECTION ENGINES…** — the
 YARA toggle and rules maintenance, and the VirusTotal API key (free account at
 [virustotal.com](https://www.virustotal.com/)) with the hash-check and upload
 toggles. The quarantine **Properties** dialog and the **threat dialog** also
 have a VIRUSTOTAL button that opens the file's public VT page in the browser —
 that works without any API key.
 
-## Features (inherited from ClamAV-WindowsUI)
+## Security Design Pipeline
+
+Every scanned file follows a multi-stage defense-in-depth security pipeline to isolate and eliminate threats efficiently while minimizing performance impact and preventing false positives on clean files:
+
+```
+          [ Threat Sources (Disk / RAM / Folder Monitor) ]
+                                 │
+                                 ▼
+                     ┌───────────────────────┐
+                     │ 1. Signature Engine   │ ──(Threat Found)──► [ Auto-Quarantine / Alert ]
+                     │    (ClamAV CVD/CLD)   │
+                     └───────────────────────┘
+                                 │
+                            (No matches)
+                                 ▼
+                     ┌───────────────────────┐
+                     │ 2. Heuristics Engine  │ ──(No matches)────► [ Target Allowed (Clean) ]
+                     │    (YARA ruleset)     │
+                     └───────────────────────┘
+                                 │
+                            (Suspicious)
+                                 ▼
+                     ┌───────────────────────┐
+                     │ 3. Cloud Reputation   │ ──(Clean / 0 flags)► [ Left in Place (False Pos.)]
+                     │  (VirusTotal Hash API)│
+                     └───────────────────────┘
+                                 │
+                           (≥ 3 Engines)
+                                 ▼
+                     [ Threat Verdict Confirmed ]
+                                 │
+                                 ▼
+                     [ Neutralized Quarantine / XOR ]
+```
+
+## Features
 
 - Scan a file, a folder, or the **whole PC**; **Scan RAM** (live process
   memory — catches injected/unpacked code masked on disk); **quick scan** of
@@ -92,10 +171,11 @@ that works without any API key.
   don't trip other AVs), with search, sorting, properties incl. SHA256
 - **Exclusions**, **USB scan offer**, **scan performance modes**, readable
   color-coded log with progress and ETA, statistics
-- One-click signature updates, daily auto-checks, app **self-update** from this
-  repo's GitHub Releases
+- One-click signature updates, daily auto-checks (with a **stale-database
+  warning** once the signatures are over a week old), app **self-update** from
+  this repo's GitHub Releases
 - **Portable or installed per-user** (no admin rights) — the first run asks
-  once; tray icon, autostart, single instance, dark theme
+  once; tray icon, autostart, single instance, fixed-size dark-theme window
 
 ## Building
 

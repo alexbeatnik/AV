@@ -1,7 +1,7 @@
 # AGENTS.md — guide for AI coding agents (and new contributors)
 
 A WinForms multi-engine antivirus for Windows: ClamAV + YARA rules +
-VirusTotal hash checks. One ~250 KB portable exe,
+VirusTotal hash checks. One ~280 KB portable exe,
 **zero dependencies, zero toolchains**: it builds with the `csc.exe` compiler
 that ships inside Windows (.NET Framework 4.8). Keep it that way.
 Licensed under Apache 2.0 (`LICENSE`).
@@ -57,8 +57,10 @@ One `MainForm` class split into partial files by concern:
 | `src/Controls.cs`, `src/Icons.cs`, `src/Theme.cs` | custom-drawn controls, glyphs, dark palette |
 | `src/Lang.cs` | the English/Ukrainian string table |
 
-UI is built in code; the settings card uses absolute positions. All state
-lives on the UI thread — background work goes through `ThreadPool`/threads
+UI is built in code; the main window is fixed-size (`FixedSingle`, pages are
+hand-tuned layouts) with ✕ as the only caption button (it hides to the tray,
+not exits) and no visible caption text, and the settings card uses absolute
+positions. All state lives on the UI thread — background work goes through `ThreadPool`/threads
 and marshals back with `BeginInvoke` (wrapped in `try/catch` for the
 form-already-closed case). Child processes set `SynchronizingObject = this`.
 
@@ -81,9 +83,9 @@ on, `0` = unlimited when off. The other limits (recursion, file count, and
 especially `--max-scantime=10000` — 10 s per object) always apply and are
 what keep even a multi-GB file from hanging a scan; don't remove them.
 
-## Working rules — details live in `.claude/skills/`
+## Working rules
 
-Follow the matching skill whenever a change touches one of these areas:
+Follow the matching rule whenever a change touches one of these areas:
 
 - **`localization`** — every user-visible string goes through `Lang.T("key")`,
   added in `src/Lang.cs` with **both** English and Ukrainian; persistent

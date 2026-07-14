@@ -108,9 +108,10 @@ namespace AVUI
                 || Directory.GetFiles(dbDir, "*.cld").Length > 0;
         }
 
-        string DbDateString()
+        // Timestamp of the newest database file (MinValue = no database)
+        DateTime DbNewestTime()
         {
-            if (!DbExists()) return "—";
+            if (!DbExists()) return DateTime.MinValue;
             DateTime newest = DateTime.MinValue;
             foreach (string f in Directory.GetFiles(dbDir))
             {
@@ -122,7 +123,31 @@ namespace AVUI
                 DateTime t = File.GetLastWriteTime(f);
                 if (t > newest) newest = t;
             }
+            return newest;
+        }
+
+        string DbDateString()
+        {
+            return DbDateString(DbNewestTime());
+        }
+
+        // Formats an already-computed newest-file time — callers that also need the
+        // staleness check reuse one DbNewestTime() result instead of re-enumerating
+        // the database directory (and possibly racing a concurrent download).
+        static string DbDateString(DateTime newest)
+        {
             return newest == DateTime.MinValue ? "—" : newest.ToString("dd.MM.yyyy HH:mm");
+        }
+
+        // A signature database this old (a week offline, or auto-update off) no
+        // longer reflects current threats — the hero turns yellow and the update
+        // button shows, while scanning stays fully enabled. MinValue (no database)
+        // has its own hero state; a future timestamp (clock set back) is not stale.
+        internal const int DbStaleDays = 7;
+        internal static bool DbIsStale(DateTime newest, DateTime now)
+        {
+            if (newest == DateTime.MinValue) return false;
+            return (now - newest).TotalDays >= DbStaleDays;
         }
 
         void RefreshDbStatus()
@@ -136,9 +161,16 @@ namespace AVUI
             }
             if (DbExists())
             {
-                // the update button is visible only when the server actually has a newer database
-                btnUpdate.Visible = updateAvailable;
-                SetHero(ShieldState.Ok, Lang.T("hero.protected"), string.Format(Lang.T("hero.dbFrom"), DbDateString()));
+                // update button: when the server has a newer database, or ours has aged
+                // past the staleness threshold (offline for a week, auto-update off)
+                DateTime newest = DbNewestTime();
+                bool stale = DbIsStale(newest, DateTime.Now);
+                btnUpdate.Visible = updateAvailable || stale;
+                if (stale)
+                    SetHero(ShieldState.Warning, Lang.T("hero.dbStale"),
+                        string.Format(Lang.T("hero.dbStaleSub"), DbDateString(newest)));
+                else
+                    SetHero(ShieldState.Ok, Lang.T("hero.protected"), string.Format(Lang.T("hero.dbFrom"), DbDateString(newest)));
                 SetScanEnabled(!scanRunning && !updateRunning);
             }
             else
@@ -402,7 +434,7 @@ namespace AVUI
             foreach (string d in watchDirs) sb.AppendLine("watch=" + d);
             foreach (string d in exclusions) sb.AppendLine("exclude=" + d);
             try { File.WriteAllText(settingsPath, sb.ToString(), new UTF8Encoding(false)); }
-            catch (Exception ex) { AppendLog("Failed to save settings: " + ex.Message + "\r\n", Theme.Danger); }
+            catch (Exception ex) { AppendLog(string.Format(Lang.T("log.settingsSaveFailed"), ex.Message), Theme.Danger); }
         }
 
         // Writes (or removes, when the key was cleared) vt.key. Called only when
@@ -415,7 +447,7 @@ namespace AVUI
                 if (vtApiKey.Length > 0) File.WriteAllText(vtKeyPath, vtApiKey, new UTF8Encoding(false));
                 else if (File.Exists(vtKeyPath)) File.Delete(vtKeyPath);
             }
-            catch (Exception ex) { AppendLog("Failed to save the API key: " + ex.Message + "\r\n", Theme.Danger); }
+            catch (Exception ex) { AppendLog(string.Format(Lang.T("log.vtKeySaveFailed"), ex.Message), Theme.Danger); }
         }
 
     }
