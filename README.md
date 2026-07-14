@@ -1,5 +1,9 @@
 # Antivirus AV
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows_10_/_11-0078d7.svg)]()
+[![Framework](https://img.shields.io/badge/.NET_Framework-4.8-purple.svg)]()
+
 A lightweight **multi-engine antivirus for Windows**. Three layers of detection
 in one ~250 KB portable exe with **zero dependencies and zero toolchains** —
 builds with the `csc.exe` compiler already built into Windows (.NET Framework
