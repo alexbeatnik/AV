@@ -211,6 +211,8 @@ namespace AVUI
                             lastScheduledScan = new DateTime(ticks);
                     }
                     else if (t == "yara=0") yaraEnabled = false;
+                    // legacy (pre-0.0.3): the key used to live in settings.ini;
+                    // it's migrated to vt.key below and never written here again
                     else if (t.StartsWith("vtkey=")) vtApiKey = t.Substring(6).Trim();
                     else if (t == "vtcheck=0") vtCheckEnabled = false;
                     else if (t == "vtupload=1") vtUploadEnabled = true; // opt-in, off unless explicitly enabled
@@ -256,6 +258,23 @@ namespace AVUI
                     else if (t.StartsWith("totalMoved=")) long.TryParse(t.Substring(11), out totalMoved);
                 }
             }
+            // The VirusTotal key lives in vt.key, NOT in settings.ini: a freshly
+            // downloaded exe writes a default settings.ini on its very first run,
+            // and installing that copy used to clobber the installed settings —
+            // taking the key with it. vt.key is created only when the user actually
+            // enters a key, so a fresh download has nothing to overwrite it with.
+            vtKeyPath = Path.Combine(baseDir, "vt.key");
+            try
+            {
+                if (File.Exists(vtKeyPath))
+                {
+                    string k = File.ReadAllText(vtKeyPath).Trim();
+                    if (k.Length > 0) vtApiKey = k;
+                }
+                else if (vtApiKey.Length > 0)
+                    SaveVtKey(); // migrate a legacy settings.ini key into its own file
+            }
+            catch { }
             // Pre-0.0.6 settings have no modeasked flag: that setup already exists and
             // works — don't spring the first-run mode question on an existing user
             if (hadSettings && !modeAskedSeen) modeAsked = true;
@@ -362,7 +381,7 @@ namespace AVUI
             sb.AppendLine("skipbig=" + (chkSkipBig.Checked ? "1" : "0"));
             sb.AppendLine("perf=" + (perfMode == 0 ? "low" : perfMode == 2 ? "high" : "normal"));
             sb.AppendLine("yara=" + (yaraEnabled ? "1" : "0"));
-            sb.AppendLine("vtkey=" + vtApiKey);
+            // the VT API key is deliberately NOT here — it lives in vt.key (see LoadSettings)
             sb.AppendLine("vtcheck=" + (vtCheckEnabled ? "1" : "0"));
             sb.AppendLine("vtupload=" + (vtUploadEnabled ? "1" : "0"));
             sb.AppendLine("lastyararules=" + lastYaraRulesCheck.Ticks);
@@ -384,6 +403,19 @@ namespace AVUI
             foreach (string d in exclusions) sb.AppendLine("exclude=" + d);
             try { File.WriteAllText(settingsPath, sb.ToString(), new UTF8Encoding(false)); }
             catch (Exception ex) { AppendLog("Failed to save settings: " + ex.Message + "\r\n", Theme.Danger); }
+        }
+
+        // Writes (or removes, when the key was cleared) vt.key. Called only when
+        // the user actually changes the key in the engines dialog, plus the one-time
+        // migration in LoadSettings — not on every SaveSettings.
+        void SaveVtKey()
+        {
+            try
+            {
+                if (vtApiKey.Length > 0) File.WriteAllText(vtKeyPath, vtApiKey, new UTF8Encoding(false));
+                else if (File.Exists(vtKeyPath)) File.Delete(vtKeyPath);
+            }
+            catch (Exception ex) { AppendLog("Failed to save the API key: " + ex.Message + "\r\n", Theme.Danger); }
         }
 
     }

@@ -325,6 +325,31 @@ namespace AVUI
             dbStrip.Height = 66;
             dbStrip.Padding = new Padding(0, 10, 12, 14);
 
+            // One-click fixes for engines that need the user's help, right next to
+            // the engine cells that show the problem (the user shouldn't have to
+            // find Settings → Engines). Visibility is managed by UpdateStatsUi.
+            btnGetYara = MakeLightButton(Lang.T("btn.getYara"), Ico.Download);
+            btnGetYara.BackColor = Theme.Card;
+            btnGetYara.Width = 250;
+            btnGetYara.Dock = DockStyle.Right;
+            btnGetYara.Visible = false;
+            btnGetYara.Click += delegate
+            {
+                yaraEnabled = true;
+                SaveSettings();
+                EnsureYaraSetup(false);
+                statusLabel.Text = Lang.T("status.yaraUpdating");
+                UpdateStatsUi(); // hides the button while the download runs
+            };
+            btnEnterVtKey = MakeLightButton(Lang.T("btn.enterVtKey"), Ico.Radar);
+            btnEnterVtKey.BackColor = Theme.Card;
+            btnEnterVtKey.Width = 250;
+            btnEnterVtKey.Dock = DockStyle.Right;
+            btnEnterVtKey.Visible = false;
+            btnEnterVtKey.Click += delegate { ShowVtKeyDialog(); };
+            dbStrip.Controls.Add(btnGetYara);
+            dbStrip.Controls.Add(btnEnterVtKey);
+
             // Last-activity strip: one line instead of a scrollable log card — the
             // full history is one click away via "Open Log File", so the dashboard
             // doesn't need to dedicate a big scrollable panel to it.
@@ -1476,6 +1501,8 @@ namespace AVUI
             btnFixWinTemp.Text = Lang.T("btn.fixWinTemp");
             btnAbout.Text = Lang.T("btn.about");
             btnEngines.Text = Lang.T("btn.engines");
+            btnGetYara.Text = Lang.T("btn.getYara");
+            btnEnterVtKey.Text = Lang.T("btn.enterVtKey");
 
             trayOpenItem.Text = Lang.T("tray.open");
             trayExitItem.Text = Lang.T("tray.exit");

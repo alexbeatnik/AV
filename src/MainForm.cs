@@ -106,6 +106,7 @@ namespace AVUI
 
         // UI
         ModernButton btnStop, btnUpdate, btnWatchDirs, btnScanLog, btnClearLog;
+        ModernButton btnGetYara, btnEnterVtKey; // engine call-to-action buttons on the dashboard strip
         ModernButton dashQuick, dashStop, dashScanFile, dashScanFolder, dashScanAll, dashScanRam, btnInstall, btnLangEn, btnLangUk, btnFixWinTemp, btnAbout, btnEngines;
         ModernButton btnPerfLow, btnPerfNormal, btnPerfHigh;
         Label perfLabel, perfHint;

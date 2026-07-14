@@ -529,6 +529,14 @@ namespace AVUI
             A("engines.vtKeyRate", "The key works, but the minute quota is used up — try again shortly",
                 "Ключ працює, але хвилинну квоту вичерпано — спробуй трохи пізніше");
             A("engines.vtKeyNet", "No answer from VirusTotal: {0}", "Немає відповіді від VirusTotal: {0}");
+            A("btn.getYara", "DOWNLOAD YARA RULES", "ЗАВАНТАЖИТИ YARA-ПРАВИЛА");
+            A("btn.enterVtKey", "ENTER VIRUSTOTAL KEY…", "ВВЕСТИ КЛЮЧ VIRUSTOTAL…");
+            A("vtkey.title", "VirusTotal API key", "API-ключ VirusTotal");
+            A("vtkey.intro", "VirusTotal checks suspicious files by SHA256 hash against 70+ antivirus engines. "
+                + "It needs a free API key — one minute to get, no payment details.",
+                "VirusTotal перевіряє підозрілі файли за SHA256-хешем у 70+ антивірусних рушіях. "
+                + "Потрібен безкоштовний API-ключ — забирає хвилину, без платіжних даних.");
+            A("vtkey.getFree", "Get a free key at virustotal.com →", "Отримати безкоштовний ключ на virustotal.com →");
             A("settings.vtCheck", "Check suspicious files by SHA256 hash on VirusTotal", "Перевіряти підозрілі файли за SHA256-хешем на VirusTotal");
             A("settings.vtUpload", "Upload files unknown to VirusTotal for analysis", "Завантажувати невідомі VirusTotal файли на аналіз");
             A("engines.vtHint", "Hash checks send only the SHA256 of suspicious files (YARA detections, new files "

@@ -157,6 +157,12 @@ namespace AVUI
                 dbStrip.ValueColors = colors;
                 dbStrip.Invalidate();
             }
+            // Engine call-to-action buttons: shown only while something actually
+            // needs the user (and never nag about an engine they switched off)
+            if (btnGetYara != null)
+                btnGetYara.Visible = yaraEnabled && !YaraReady() && !yaraSetupRunning;
+            if (btnEnterVtKey != null)
+                btnEnterVtKey.Visible = vtCheckEnabled && vtApiKey.Length == 0;
         }
 
         // Moves a file into quarantine manually (without clamscan --move) in the

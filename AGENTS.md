@@ -33,7 +33,7 @@ reference means editing the `/r:` lists in **both** scripts. CI
   the only admin action (`--fix-wintemp`) is a separate short-lived relaunch
   with `Verb = "runas"` (see `MainForm.Install.cs`).
 - Never commit build outputs, `clamav/`, `yara/`, `settings.ini`, `scans.log`,
-  or `quarantine/` (all gitignored).
+  `vt.key`, or `quarantine/` (all gitignored).
 
 ## Architecture
 
@@ -90,7 +90,11 @@ Follow the matching skill whenever a change touches one of these areas:
   controls are re-texted in `ApplyLanguage()`.
 - **`settings-key`** — a `settings.ini` key needs a parser line in
   `LoadSettings()`, a writer in `SaveSettings()`, and graceful degradation
-  when missing from old files.
+  when missing from old files. Exception: the VirusTotal API key lives in its
+  own `vt.key` file (`SaveVtKey`), written only when the user changes the key —
+  so a fresh download's default `settings.ini` can never wipe it on install
+  (`CarryOverFile` in `MainForm.Install.cs` also never overwrites existing
+  destination files).
 - **`testing`** — testable logic is exposed as `internal static` members of
   `MainForm` and covered in `tests/*.cs` (zero-dependency reflection runner).
 - **`release`** — the version lives in `src/AssemblyInfo.cs`; merging a bump

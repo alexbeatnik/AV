@@ -267,9 +267,129 @@ namespace AVUI
                 vtUploadEnabled = tglVtUpload.Checked;
                 // a fresh key must not inherit the previous key's 401/403 backoff
                 if (keyChanged) vtPauseUntil = DateTime.MinValue;
+                if (keyChanged) SaveVtKey(); // the key lives in vt.key, not settings.ini
                 SaveSettings();
                 if (yaraEnabled && (!wasEnabled || !YaraReady())) EnsureYaraSetup(false);
                 UpdateStatsUi(); // the dashboard engine cells reflect the new state
+                statusLabel.Text = Lang.T("status.enginesSaved");
+            }
+        }
+
+        // Compact "enter your VirusTotal key" dialog for the dashboard
+        // call-to-action button — pasting a key shouldn't require finding the
+        // full engines dialog in Settings.
+        void ShowVtKeyDialog()
+        {
+            using (var dlg = new Form())
+            {
+                dlg.Text = Lang.T("vtkey.title");
+                dlg.ClientSize = new Size(520, 262);
+                dlg.StartPosition = FormStartPosition.CenterParent;
+                dlg.MinimizeBox = dlg.MaximizeBox = false;
+                dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dlg.BackColor = Theme.Bg;
+                dlg.ForeColor = Theme.Text;
+                dlg.Font = Font;
+                Theme.DarkTitleBar(dlg);
+
+                var intro = new Label();
+                intro.Text = Lang.T("vtkey.intro");
+                intro.ForeColor = Theme.Muted;
+                intro.BackColor = Theme.Bg;
+                intro.SetBounds(24, 16, 472, 44);
+
+                var keyLabel = new Label();
+                keyLabel.Text = Lang.T("engines.vtKeyLabel");
+                keyLabel.AutoSize = true;
+                keyLabel.ForeColor = Theme.Text;
+                keyLabel.BackColor = Theme.Bg;
+                keyLabel.Location = new Point(24, 66);
+
+                var keyBox = new TextBox();
+                keyBox.SetBounds(24, 88, 472, 26);
+                keyBox.BorderStyle = BorderStyle.FixedSingle;
+                keyBox.BackColor = Theme.LogBg;
+                keyBox.ForeColor = Theme.Text;
+                keyBox.Font = new Font("Consolas", 9.5f);
+                keyBox.Text = vtApiKey;
+
+                var keyLink = new LinkLabel();
+                keyLink.Text = Lang.T("vtkey.getFree");
+                keyLink.AutoSize = true;
+                keyLink.Location = new Point(24, 122);
+                keyLink.BackColor = Theme.Bg;
+                keyLink.LinkColor = Theme.Accent;
+                keyLink.ActiveLinkColor = Theme.AccentHot;
+                keyLink.LinkBehavior = LinkBehavior.HoverUnderline;
+                keyLink.LinkClicked += delegate
+                {
+                    try { Process.Start("https://www.virustotal.com/gui/my-apikey"); } catch { }
+                };
+
+                var btnTest = MakeLightButton(Lang.T("btn.testKey"), Ico.Radar);
+                btnTest.BackColor = Theme.Bg;
+                btnTest.SetBounds(24, 154, 180, 30);
+                var testResult = new Label();
+                testResult.AutoSize = true;
+                testResult.BackColor = Theme.Bg;
+                testResult.ForeColor = Theme.Muted;
+                testResult.Location = new Point(216, 161);
+                btnTest.Click += delegate
+                {
+                    string k = keyBox.Text.Trim();
+                    if (k.Length == 0)
+                    {
+                        testResult.Text = Lang.T("engines.vtKeyEmpty");
+                        testResult.ForeColor = Theme.Warn;
+                        return;
+                    }
+                    testResult.Text = Lang.T("engines.vtTesting");
+                    testResult.ForeColor = Theme.Muted;
+                    btnTest.Enabled = false;
+                    VtTestKey(k, delegate(bool ok, string msg, Color color)
+                    {
+                        if (dlg.IsDisposed) return;
+                        btnTest.Enabled = true;
+                        testResult.Text = msg;
+                        testResult.ForeColor = color;
+                        if (ok) vtPauseUntil = DateTime.MinValue;
+                    });
+                };
+
+                var buttons = new FlowLayoutPanel();
+                buttons.Dock = DockStyle.Bottom;
+                buttons.FlowDirection = FlowDirection.RightToLeft;
+                buttons.Height = 52;
+                buttons.Padding = new Padding(10);
+                buttons.BackColor = Theme.Bg;
+                var cancel = MakeButton(Lang.T("btn.cancel"), 100, Theme.Card, Theme.Bg, Ico.Close);
+                cancel.DialogResult = DialogResult.Cancel;
+                var ok2 = MakeButton("OK", 90, Theme.Accent, Theme.AccentHot, Ico.Check);
+                ok2.DialogResult = DialogResult.OK;
+                buttons.Controls.Add(cancel);
+                buttons.Controls.Add(ok2);
+
+                dlg.Controls.Add(intro);
+                dlg.Controls.Add(keyLabel);
+                dlg.Controls.Add(keyBox);
+                dlg.Controls.Add(keyLink);
+                dlg.Controls.Add(btnTest);
+                dlg.Controls.Add(testResult);
+                dlg.Controls.Add(buttons);
+                dlg.AcceptButton = ok2;
+                dlg.CancelButton = cancel;
+
+                if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+                bool keyChanged = !string.Equals(vtApiKey, keyBox.Text.Trim());
+                vtApiKey = keyBox.Text.Trim();
+                if (keyChanged)
+                {
+                    vtPauseUntil = DateTime.MinValue;
+                    SaveVtKey();
+                }
+                SaveSettings();
+                UpdateStatsUi(); // hides the call-to-action once a key is present
                 statusLabel.Text = Lang.T("status.enginesSaved");
             }
         }

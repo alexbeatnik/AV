@@ -28,7 +28,8 @@ namespace AVUI
 
     public partial class MainForm : Form
     {
-        string vtApiKey = "";        // settings: vtkey= (empty = feature dormant)
+        string vtApiKey = "";        // lives in vt.key, its own file (empty = feature dormant); see SaveVtKey
+        string vtKeyPath;            // <exe dir>\vt.key — set in LoadSettings
         bool vtCheckEnabled = true;  // settings: vtcheck=0 turns hash lookups off
         bool vtUploadEnabled;        // settings: vtupload=1 — OPT-IN, off by default
         readonly List<string[]> vtQueue = new List<string[]>(); // {path, hash-or-null}
