@@ -330,15 +330,18 @@ namespace AVUI
                 foreach (string[] ff in foundFiles)
                     if (string.Equals(ff[0], path, StringComparison.OrdinalIgnoreCase)) { known = true; break; }
                 if (known) continue; // ClamAV already reported this file
+                bool isMemDump = memDumpDir != null && IsUnder(path, memDumpDir);
                 string hash = null;
-                try { hash = Sha256OfQuarFile(path); } catch { }
+                if (VtActive && !isMemDump)
+                {
+                    try { hash = Sha256OfQuarFile(path); } catch { }
+                }
                 // One community-rule match is a suspicion, not a verdict — Forge
                 // rules do hit legitimate packers/installers. When VirusTotal can
                 // arbitrate, hold the file untouched until the hash verdict arrives
                 // (ResolvePendingYara). RAM dumps can't wait: their temp files are
                 // deleted right after the scan, so they take the immediate path.
-                bool isMemDump = memDumpDir != null && IsUnder(path, memDumpDir);
-                if (VtActive && hash != null && !isMemDump && VtQueueFile(path, hash))
+                if (hash != null && VtQueueFile(path, hash))
                 {
                     pending++;
                     vtPendingYara[path] = threat;

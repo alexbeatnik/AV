@@ -52,9 +52,10 @@ namespace AVUI
         // deferring an action until the verdict must not wait in that case.
         bool VtQueueFile(string path, string hash)
         {
-            if (!VtActive || vtQueue.Count >= 100) return false;
+            if (!VtActive) return false;
             foreach (string[] q in vtQueue)
                 if (string.Equals(q[0], path, StringComparison.OrdinalIgnoreCase)) return true; // already queued
+            if (vtQueue.Count >= 100) return false;
             vtQueue.Add(new string[] { path, hash });
             if (vtTimer == null)
             {
