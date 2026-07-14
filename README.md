@@ -27,6 +27,42 @@ Based on [ClamAV-WindowsUI](https://github.com/alexbeatnik/ClamAV-WindowsUI).
 The interface is available in **English** (default) and **Ukrainian**,
 switchable anytime from Settings.
 
+## Why this project?
+
+Windows Defender is excellent, and this project is not intended to replace it. Instead, it serves as a lightweight power-tool demonstrating how distinct, decoupled malware detection systems can be orchestrated under a single portable dashboard entirely built in C# — keeping resource footprint minimal while maximizing coverage with local signatures, local heuristic rules, and cloud reputational vetting.
+
+## Resource & Performance Focus
+* **Executable size:** ~250 KB (single portable EXE, zero dependencies)
+* **Downloads footprint:** ClamAV binary assets and database (~220 MB total) + YARA core ruleset (~15 MB total)
+* **Memory profile:**
+  * **While Idle:** < 15 MB RAM (in system tray)
+  * **While Scanning:** ~80 MB RAM (excluding background clamd process)
+
+## Scan Architecture & Flow
+
+```
+               Scan Input (Disk / RAM / New File Event)
+                                 │
+                        ┌────────┴────────┐
+                        ▼                 ▼
+                     ClamAV              YARA
+                   Signatures         Heuristics
+                        │                 │
+                        └────────┬────────┘
+                                 ▼
+                             Suspicion
+                                 │
+                                 ▼
+                            VirusTotal
+                            Arbitration
+                                 │
+                                 ▼
+                          Threat Decision
+                        ┌────────┴────────┐
+                        ▼                 ▼
+                     Quarantine         Exclusion
+```
+
 <p align="center">
   <img src="screenshots/dashboard.png" width="400" alt="Dashboard" />
   <img src="screenshots/logs.png" width="400" alt="Logs" />
@@ -83,6 +119,41 @@ YARA toggle and rules maintenance, and the VirusTotal API key (free account at
 toggles. The quarantine **Properties** dialog and the **threat dialog** also
 have a VIRUSTOTAL button that opens the file's public VT page in the browser —
 that works without any API key.
+
+## Security Design Pipeline
+
+Every scanned file follows a multi-stage defense-in-depth security pipeline to isolate and eliminate threats efficiently while minimizing performance impact and preventing false positives on clean files:
+
+```
+          [ Threat Sources (Disk / RAM / Folder Monitor) ]
+                                 │
+                                 ▼
+                     ┌───────────────────────┐
+                     │ 1. Signature Engine   │ ──(Threat Found)──► [ Auto-Quarantine / Alert ]
+                     │    (ClamAV CVD/CLD)   │
+                     └───────────────────────┘
+                                 │
+                            (No matches)
+                                 ▼
+                     ┌───────────────────────┐
+                     │ 2. Heuristics Engine  │ ──(No matches)────► [ Target Allowed (Clean) ]
+                     │    (YARA ruleset)     │
+                     └───────────────────────┘
+                                 │
+                            (Suspicious)
+                                 ▼
+                     ┌───────────────────────┐
+                     │ 3. Cloud Reputation   │ ──(Clean / 0 flags)► [ Left in Place (False Pos.)]
+                     │  (VirusTotal Hash API)│
+                     └───────────────────────┘
+                                 │
+                           (≥ 3 Engines)
+                                 ▼
+                     [ Threat Verdict Confirmed ]
+                                 │
+                                 ▼
+                     [ Neutralized Quarantine / XOR ]
+```
 
 ## Features (inherited from ClamAV-WindowsUI)
 
