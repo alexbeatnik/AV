@@ -20,17 +20,26 @@ namespace AVUI
         // ---------- Self-update: check GitHub Releases for a newer AV.exe ----------
 
         const string UpdateApiUrl = "https://api.github.com/repos/alexbeatnik/AV/releases/latest";
-        // Every 4 hours: the GitHub API allows 60 unauthenticated requests/hour per
-        // address, so 6 tiny requests a day are nowhere near any limit — unlike the
-        // ClamAV database CDN (see dbCooldownUntil), which does rate-limit (429).
-        const int AppUpdateCheckHours = 4;
+        // On every launch plus once a day while running. One tiny GitHub API
+        // request — the 60 unauthenticated requests/hour limit is nowhere near
+        // (unlike the ClamAV database CDN, see dbCooldownUntil, which does 429).
+        const int AppUpdateCheckHours = 24;
         DateTime lastAppUpdateCheck; // time of the last check (persisted)
         bool checkingAppUpdate;      // a check/download is already in flight
+        bool startupAppCheckDone;    // this launch already ran its unconditional check
+
+        // Pure due-time rule (unit-tested): the first check of a launch always
+        // fires; after that the daily period applies.
+        internal static bool AppUpdateDue(bool startupChecked, DateTime last, DateTime now, int periodHours)
+        {
+            return !startupChecked || (now - last).TotalHours >= periodHours;
+        }
 
         void MaybeCheckAppUpdate()
         {
             if (checkingAppUpdate || scanRunning || updateRunning) return;
-            if ((DateTime.Now - lastAppUpdateCheck).TotalHours < AppUpdateCheckHours) return;
+            if (!AppUpdateDue(startupAppCheckDone, lastAppUpdateCheck, DateTime.Now, AppUpdateCheckHours)) return;
+            startupAppCheckDone = true; // set only when a check actually launches
             checkingAppUpdate = true;
             System.Threading.ThreadPool.QueueUserWorkItem(delegate { AppUpdateWorker(); });
         }

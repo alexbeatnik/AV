@@ -161,7 +161,8 @@ namespace AVUI
 
             // Auto-update: first check 15s after startup, then the timer ticks hourly.
             // The actual checks are throttled further: database versions once a day
-            // (the CDN rate-limits), app releases on GitHub every 4 hours
+            // (the CDN rate-limits); app releases on GitHub are checked on every
+            // launch (the first tick ignores the persisted timestamp) and then daily
             autoUpdateTimer = new Timer();
             autoUpdateTimer.Interval = 15000;
             autoUpdateTimer.Tick += delegate
