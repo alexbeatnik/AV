@@ -34,9 +34,10 @@ Windows Defender is excellent, and this project is not intended to replace it. I
 ## Resource & Performance Focus
 * **Executable size:** ~250 KB (single portable EXE, zero dependencies)
 * **Downloads footprint:** ClamAV binary assets and database (~220 MB total) + YARA core ruleset (~15 MB total)
-* **Memory profile:**
+* **Typical memory profile:**
   * **While Idle:** < 15 MB RAM (in system tray)
-  * **While Scanning:** ~80 MB RAM (excluding background clamd process)
+  * **While Scanning:** ~80 MB RAM for the coordinator UI (`AV.exe`)
+    * *Note:* Scanning spawning sub-processes will allocate memory on demand. The ClamAV resident database backend (`clamd`) uses ~1.2 GB RAM (loaded only for the active scan duration), and the `yara64` heuristic process typically uses ~150 MB RAM while evaluating rules.
 
 ## Scan Architecture & Flow
 
