@@ -19,6 +19,15 @@ Based on [ClamAV-WindowsUI](https://github.com/alexbeatnik/ClamAV-WindowsUI).
 The interface is available in **English** (default) and **Ukrainian**,
 switchable anytime from Settings.
 
+<p align="center">
+  <img src="screenshots/dashboard.png" width="400" alt="Dashboard" />
+  <img src="screenshots/logs.png" width="400" alt="Logs" />
+</p>
+<p align="center">
+  <img src="screenshots/quarantine.png" width="400" alt="Quarantine" />
+  <img src="screenshots/settings.png" width="400" alt="Settings" />
+</p>
+
 
 ## How the three engines work together
 
