@@ -234,30 +234,18 @@ namespace AVUI
             yaraErrLines = 0;
             if (!monitorScan) AppendSection(Lang.T("section.yara"));
 
-            // yara64 opens files via the ANSI code page (plain fopen): fed the UTF-8
-            // list ClamAV uses, it fails on every non-ASCII path ("error scanning
-            // ????…"), and a match on such a path could never be mapped back to the
-            // real file. Re-encode the list in the system ANSI code page, dropping
-            // the (rare) paths it cannot represent.
+            // On Windows, yara64.exe expects the --scan-list file to be encoded in
+            // UTF-16 LE (Unicode without BOM) and writes match results to stdout
+            // in UTF-8. Re-encode our temporary file list to UTF-16 LE.
             string scanList = yaraListPath;
-            int unsupported = 0;
             try
             {
-                var ansi = Encoding.Default;
-                var safe = AnsiSafePaths(new List<string>(File.ReadAllLines(yaraListPath)), ansi, out unsupported);
-                if (safe.Count == 0)
-                {
-                    // nothing yara can even open — don't spawn it just to fail
-                    AppendLog(string.Format(Lang.T("log.yaraPathsSkipped"), unsupported), Theme.Warn, "WARN", true);
-                    FinishScan(clamCode);
-                    return;
-                }
-                string ansiList = Path.Combine(Path.GetTempPath(), "av-yara-" + Guid.NewGuid().ToString("N") + ".txt");
-                File.WriteAllLines(ansiList, safe.ToArray(), ansi);
-                batchListPaths.Add(ansiList); // cleaned with the other scan lists
-                scanList = ansiList;
-                if (unsupported > 0)
-                    AppendLog(string.Format(Lang.T("log.yaraPathsSkipped"), unsupported), Theme.Warn, "WARN", true);
+                var unicodeWithoutBom = new UnicodeEncoding(false, false);
+                var paths = File.ReadAllLines(yaraListPath);
+                string unicodeList = Path.Combine(Path.GetTempPath(), "av-yara-" + Guid.NewGuid().ToString("N") + ".txt");
+                File.WriteAllLines(unicodeList, paths, unicodeWithoutBom);
+                batchListPaths.Add(unicodeList); // cleaned with the other scan lists
+                scanList = unicodeList;
             }
             catch { } // fall back to the shared UTF-8 list — worst case is the old behavior
 
@@ -277,8 +265,8 @@ namespace AVUI
             }
             args.Append(" --scan-list ").Append(Quote(scanList));
             yaraRunning = true;
-            // yara's output comes back in the same ANSI code page the list was written in
-            StartProcess(YaraExe, args.ToString(), OnYaraLine, OnYaraExit, Encoding.Default);
+            // yara64 outputs in UTF-8 (handled by standard StartProcess overload)
+            StartProcess(YaraExe, args.ToString(), OnYaraLine, OnYaraExit);
         }
 
         // Match lines look like "RuleName C:\path\file"; anything else (compile
