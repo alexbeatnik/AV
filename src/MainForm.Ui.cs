@@ -22,7 +22,11 @@ namespace AVUI
         {
             Text = AppName;
             Icon = AppIcon;
-            MinimumSize = new Size(900, 700);
+            // Fixed-size window: the pages are hand-tuned layouts (the settings card
+            // uses absolute positions), so resizing and maximizing are disabled —
+            // minimize stays, it's how the app goes to the tray
+            FormBorderStyle = FormBorderStyle.FixedSingle;
+            MaximizeBox = false;
             Size = new Size(940, 720);
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Theme.Bg;
