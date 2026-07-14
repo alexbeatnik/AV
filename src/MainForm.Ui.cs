@@ -33,6 +33,7 @@ namespace AVUI
             BuildUi();
             LocateClamAV();
             LoadSettings();
+            SyncUninstallVersion(); // a self-updated exe must show its real version in Settings → Apps
             RefreshDbStatus();
             ShowPage(0);
             EnsureAutostartFirstRun();

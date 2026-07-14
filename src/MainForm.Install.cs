@@ -145,6 +145,25 @@ namespace AVUI
                     k.SetValue(RunValueName, "\"" + dstExe + "\" --tray");
         }
 
+        // Self-updates swap the exe but the Apps-list entry kept the version from
+        // install time — refresh it on startup so Settings → Apps shows what's
+        // actually running.
+        static void SyncUninstallVersion()
+        {
+            if (!IsInstalled) return;
+            try
+            {
+                using (var k = Registry.CurrentUser.OpenSubKey(
+                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\AV", true))
+                {
+                    if (k == null) return; // installed manually without the registry entry
+                    if (!string.Equals(k.GetValue("DisplayVersion") as string, AppVersion))
+                        k.SetValue("DisplayVersion", AppVersion);
+                }
+            }
+            catch { }
+        }
+
         static void RunUninstallMode()
         {
             // Everything the app ever creates is per-user (%LocalAppData%, HKCU,

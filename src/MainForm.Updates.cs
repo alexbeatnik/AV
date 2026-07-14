@@ -486,12 +486,20 @@ namespace AVUI
         // (freshclam may have converted a .cvd to .cld — whichever is present wins),
         // the total signature count, and the status of the two other detection
         // layers — YARA rules and the VirusTotal hash check.
+        // The engines strip: ClamAV (version) + its database files, then YARA and
+        // VirusTotal — every engine's state in one row (see UpdateStatsUi).
         void DbStripData(out string[] caps, out string[] vals, out Color[] colors)
         {
             string[] names = { "main", "daily", "bytecode" };
-            caps = new string[names.Length + 3];
-            vals = new string[names.Length + 3];
-            colors = new Color[names.Length + 3];
+            caps = new string[names.Length + 4];
+            vals = new string[names.Length + 4];
+            colors = new Color[names.Length + 4];
+
+            // ClamAV: the core engine's version, green once it's present with a database
+            caps[0] = Lang.T("stat.clamav");
+            vals[0] = clamVersion;
+            colors[0] = clamDir != null && DbExists() ? Theme.Good : Theme.Warn;
+
             long sigs = 0;
             for (int i = 0; i < names.Length; i++)
             {
@@ -507,48 +515,48 @@ namespace AVUI
                     }
                     if (ver > 0) sigs += LocalCvdField(Path.Combine(dbDir, file), 3);
                 }
-                caps[i] = file;
-                vals[i] = ver > 0 ? "v" + ver : "—";
+                caps[i + 1] = file;
+                vals[i + 1] = ver > 0 ? "v" + ver : "—";
             }
-            caps[names.Length] = Lang.T("stat.signatures");
-            vals[names.Length] = sigs > 0 ? sigs.ToString("#,0") : "—";
+            caps[names.Length + 1] = Lang.T("stat.signatures");
+            vals[names.Length + 1] = sigs > 0 ? sigs.ToString("#,0") : "—";
 
             // YARA: ✓ + rules date when ready, otherwise why it isn't
-            caps[names.Length + 1] = Lang.T("stat.yara");
+            caps[names.Length + 2] = Lang.T("stat.yara");
             if (!yaraEnabled)
             {
-                vals[names.Length + 1] = Lang.T("sval.disabled");
-                colors[names.Length + 1] = Theme.Muted;
+                vals[names.Length + 2] = Lang.T("sval.disabled");
+                colors[names.Length + 2] = Theme.Muted;
             }
             else if (YaraReady())
             {
                 string when = File.Exists(YaraForgeRules)
                     ? File.GetLastWriteTime(YaraForgeRules).ToString("dd.MM.yyyy") : "";
-                vals[names.Length + 1] = ("✓ " + when).TrimEnd();
-                colors[names.Length + 1] = Theme.Good;
+                vals[names.Length + 2] = ("✓ " + when).TrimEnd();
+                colors[names.Length + 2] = Theme.Good;
             }
             else
             {
-                vals[names.Length + 1] = yaraSetupRunning ? Lang.T("sval.downloading") : "—";
-                colors[names.Length + 1] = Theme.Warn;
+                vals[names.Length + 2] = yaraSetupRunning ? Lang.T("sval.downloading") : "—";
+                colors[names.Length + 2] = Theme.Warn;
             }
 
             // VirusTotal: enabled with a key / no key yet / switched off
-            caps[names.Length + 2] = Lang.T("stat.virustotal");
+            caps[names.Length + 3] = Lang.T("stat.virustotal");
             if (vtApiKey.Length == 0)
             {
-                vals[names.Length + 2] = Lang.T("sval.vtNoKey");
-                colors[names.Length + 2] = Theme.Warn;
+                vals[names.Length + 3] = Lang.T("sval.vtNoKey");
+                colors[names.Length + 3] = Theme.Warn;
             }
             else if (!vtCheckEnabled)
             {
-                vals[names.Length + 2] = Lang.T("sval.disabled");
-                colors[names.Length + 2] = Theme.Muted;
+                vals[names.Length + 3] = Lang.T("sval.disabled");
+                colors[names.Length + 3] = Theme.Muted;
             }
             else
             {
-                vals[names.Length + 2] = "✓ " + Lang.T("sval.enabled");
-                colors[names.Length + 2] = Theme.Good;
+                vals[names.Length + 3] = "✓ " + Lang.T("sval.enabled");
+                colors[names.Length + 3] = Theme.Good;
             }
         }
 
