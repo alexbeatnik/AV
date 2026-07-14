@@ -1,7 +1,7 @@
-# Antivirus AV
+# AV
 
 <p align="center">
-  <img src="logo.png" width="128" alt="Antivirus AV Logo" />
+  <img src="logo.png" width="128" alt="AV Logo" />
 </p>
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
