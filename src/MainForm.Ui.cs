@@ -20,19 +20,23 @@ namespace AVUI
 
         public MainForm(bool startInTray)
         {
-            Text = AppName;
+            Text = AppName; // stays "AV" for the taskbar/Alt+Tab; the visible caption text is hidden below
             Icon = AppIcon;
             // Fixed-size window: the pages are hand-tuned layouts (the settings card
-            // uses absolute positions), so resizing and maximizing are disabled —
-            // minimize stays, it's how the app goes to the tray
+            // uses absolute positions), so resizing and maximizing are disabled.
+            // Both caption boxes are dropped so only ✕ remains — Windows can't show
+            // minimize+close without a grayed maximize placeholder between them, and
+            // ✕ already minimizes to the tray instead of exiting (see OnFormClosing),
+            // so a separate minimize button adds nothing.
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
+            MinimizeBox = false;
             Size = new Size(940, 720);
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Theme.Bg;
             ForeColor = Theme.Text;
             Font = new Font("Segoe UI", 9.5f);
-            Theme.DarkTitleBar(this);
+            Theme.DarkTitleBar(this, true); // caption text hidden — the in-window header is the branding
 
             BuildUi();
             LocateClamAV();

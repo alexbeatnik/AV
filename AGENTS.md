@@ -57,8 +57,9 @@ One `MainForm` class split into partial files by concern:
 | `src/Controls.cs`, `src/Icons.cs`, `src/Theme.cs` | custom-drawn controls, glyphs, dark palette |
 | `src/Lang.cs` | the English/Ukrainian string table |
 
-UI is built in code; the main window is fixed-size (`FixedSingle`, no
-maximize — pages are hand-tuned layouts) and the settings card uses absolute
+UI is built in code; the main window is fixed-size (`FixedSingle`, pages are
+hand-tuned layouts) with ✕ as the only caption button (it hides to the tray,
+not exits) and no visible caption text, and the settings card uses absolute
 positions. All state lives on the UI thread — background work goes through `ThreadPool`/threads
 and marshals back with `BeginInvoke` (wrapped in `try/catch` for the
 form-already-closed case). Child processes set `SynchronizingObject = this`.

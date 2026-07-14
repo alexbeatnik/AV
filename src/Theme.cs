@@ -89,8 +89,26 @@ namespace AVUI
         [DllImport("dwmapi.dll")]
         static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 
-        // Dark window title bar (Win10 1903+); without it the frame stays white
+        // GDI COLORREF is 0x00BBGGRR — not the ARGB order Color uses
+        static int ToColorRef(Color c)
+        {
+            return c.R | (c.G << 8) | (c.B << 16);
+        }
+
+        // Dark window title bar (Win10 1903+); without it the frame stays white.
+        // On Windows 11 the caption is additionally painted in the app's own
+        // background color so the title bar doesn't read as a foreign gray strip;
+        // those attributes simply fail on Windows 10 and the dark caption stays.
         public static void DarkTitleBar(Form f)
+        {
+            DarkTitleBar(f, false);
+        }
+
+        // hideCaptionText paints the caption text in the caption color, making it
+        // invisible while Form.Text keeps naming the window for the taskbar,
+        // Alt+Tab and screen readers — used by the main window, whose in-window
+        // header already carries the branding. Dialogs keep their visible titles.
+        public static void DarkTitleBar(Form f, bool hideCaptionText)
         {
             EventHandler apply = delegate
             {
@@ -99,6 +117,12 @@ namespace AVUI
                     int on = 1;
                     if (DwmSetWindowAttribute(f.Handle, 20, ref on, 4) != 0)
                         DwmSetWindowAttribute(f.Handle, 19, ref on, 4); // older Win10 builds
+                    int caption = ToColorRef(Bg);
+                    DwmSetWindowAttribute(f.Handle, 35, ref caption, 4);  // DWMWA_CAPTION_COLOR (Win11 22000+)
+                    int text = ToColorRef(hideCaptionText ? Bg : Text);
+                    DwmSetWindowAttribute(f.Handle, 36, ref text, 4);     // DWMWA_TEXT_COLOR
+                    int border = ToColorRef(CardLine);
+                    DwmSetWindowAttribute(f.Handle, 34, ref border, 4);   // DWMWA_BORDER_COLOR — matches the card outlines
                 }
                 catch { }
             };
