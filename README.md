@@ -8,6 +8,15 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows_10_/_11-0078d7.svg)]()
 [![Framework](https://img.shields.io/badge/.NET_Framework-4.8-purple.svg)]()
 
+<p align="center">
+  <img src="screenshots/dashboard.png" width="400" alt="Dashboard" />
+  <img src="screenshots/logs.png" width="400" alt="Logs" />
+</p>
+<p align="center">
+  <img src="screenshots/quarantine.png" width="400" alt="Quarantine" />
+  <img src="screenshots/settings.png" width="400" alt="Settings" />
+</p>
+
 A lightweight **multi-engine antivirus for Windows**. Three layers of detection
 in one ~250 KB portable exe with **zero dependencies and zero toolchains** —
 builds with the `csc.exe` compiler already built into Windows (.NET Framework
@@ -63,16 +72,6 @@ Windows Defender is excellent, and this project is not intended to replace it. I
                         ▼                 ▼
                      Quarantine         Exclusion
 ```
-
-<p align="center">
-  <img src="screenshots/dashboard.png" width="400" alt="Dashboard" />
-  <img src="screenshots/logs.png" width="400" alt="Logs" />
-</p>
-<p align="center">
-  <img src="screenshots/quarantine.png" width="400" alt="Quarantine" />
-  <img src="screenshots/settings.png" width="400" alt="Settings" />
-</p>
-
 
 ## How the three engines work together
 
