@@ -1419,8 +1419,9 @@ namespace AVUI
             setStatusVals[0].ForeColor = engine ? Theme.Good : Theme.Danger;
 
             bool db = DbExists();
-            setStatusVals[1].Text = db ? DbDateString() : "—";
-            setStatusVals[1].ForeColor = db && !DbIsStale(DbNewestTime(), DateTime.Now) ? Theme.Good : Theme.Warn;
+            DateTime dbNewest = DbNewestTime(); // one directory pass for both the text and the color
+            setStatusVals[1].Text = db ? DbDateString(dbNewest) : "—";
+            setStatusVals[1].ForeColor = db && !DbIsStale(dbNewest, DateTime.Now) ? Theme.Good : Theme.Warn;
 
             bool mon = chkMonitor.Checked;
             setStatusVals[2].Text = mon

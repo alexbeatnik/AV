@@ -128,7 +128,14 @@ namespace AVUI
 
         string DbDateString()
         {
-            DateTime newest = DbNewestTime();
+            return DbDateString(DbNewestTime());
+        }
+
+        // Formats an already-computed newest-file time — callers that also need the
+        // staleness check reuse one DbNewestTime() result instead of re-enumerating
+        // the database directory (and possibly racing a concurrent download).
+        static string DbDateString(DateTime newest)
+        {
             return newest == DateTime.MinValue ? "—" : newest.ToString("dd.MM.yyyy HH:mm");
         }
 
@@ -156,13 +163,14 @@ namespace AVUI
             {
                 // update button: when the server has a newer database, or ours has aged
                 // past the staleness threshold (offline for a week, auto-update off)
-                bool stale = DbIsStale(DbNewestTime(), DateTime.Now);
+                DateTime newest = DbNewestTime();
+                bool stale = DbIsStale(newest, DateTime.Now);
                 btnUpdate.Visible = updateAvailable || stale;
                 if (stale)
                     SetHero(ShieldState.Warning, Lang.T("hero.dbStale"),
-                        string.Format(Lang.T("hero.dbStaleSub"), DbDateString()));
+                        string.Format(Lang.T("hero.dbStaleSub"), DbDateString(newest)));
                 else
-                    SetHero(ShieldState.Ok, Lang.T("hero.protected"), string.Format(Lang.T("hero.dbFrom"), DbDateString()));
+                    SetHero(ShieldState.Ok, Lang.T("hero.protected"), string.Format(Lang.T("hero.dbFrom"), DbDateString(newest)));
                 SetScanEnabled(!scanRunning && !updateRunning);
             }
             else
