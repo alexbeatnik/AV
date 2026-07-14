@@ -5,8 +5,8 @@
 </p>
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Windows_10_/_11-0078d7.svg)]()
-[![Framework](https://img.shields.io/badge/.NET_Framework-4.8-purple.svg)]()
+[![Platform](https://img.shields.io/badge/Platform-Windows_10_/_11-0078d7.svg)](https://www.microsoft.com/windows)
+[![Framework](https://img.shields.io/badge/.NET_Framework-4.8-purple.svg)](https://dotnet.microsoft.com/download/dotnet-framework/net48)
 
 <p align="center">
   <img src="screenshots/dashboard.png" width="400" alt="Dashboard" />

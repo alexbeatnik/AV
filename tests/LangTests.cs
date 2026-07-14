@@ -87,7 +87,10 @@ namespace AVUI.Tests
                 Assert.True(en != key, key + " exists in English");
                 Assert.True(uk != key && uk != en, key + " has its own Ukrainian translation");
             }
-            Assert.True(Lang.T("hero.dbStaleSub").Contains("{0}"), "hero.dbStaleSub keeps its {0} placeholder");
+            using (new LangScope(Lang.Language.English))
+                Assert.True(Lang.T("hero.dbStaleSub").Contains("{0}"), "hero.dbStaleSub keeps its {0} placeholder (English)");
+            using (new LangScope(Lang.Language.Ukrainian))
+                Assert.True(Lang.T("hero.dbStaleSub").Contains("{0}"), "hero.dbStaleSub keeps its {0} placeholder (Ukrainian)");
         }
 
         public static void TestFirstRunChoiceKeepsBothPlaceholders()
