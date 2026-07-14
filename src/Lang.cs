@@ -429,6 +429,8 @@ namespace AVUI
             A("hero.protected", "Protected", "Захищено");
             A("hero.dbFrom", "Signature database from {0}", "Бази сигнатур від {0}");
             A("hero.dbNeeded", "Signature database needed", "Потрібні бази сигнатур");
+            A("hero.dbStale", "Signature database is outdated", "Бази сигнатур застаріли");
+            A("hero.dbStaleSub", "Signatures from {0} — press \"Update Database\"", "Сигнатури від {0} — натисни «Оновити бази»");
             A("hero.pressUpdateFirstTime", "Press \"Update Database\" — first download is ~250 MB", "Натисни «Оновити бази» — перший раз завантажиться ~250 МБ");
             A("tray.appUpdateInstalling", "Updating AV to {0} — the app will restart in a few seconds…", "Оновлюю AV до {0} — програма перезапуститься за кілька секунд…");
             A("stats.neverScanned", "never", "ще не було");

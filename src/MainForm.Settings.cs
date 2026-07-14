@@ -108,9 +108,10 @@ namespace AVUI
                 || Directory.GetFiles(dbDir, "*.cld").Length > 0;
         }
 
-        string DbDateString()
+        // Timestamp of the newest database file (MinValue = no database)
+        DateTime DbNewestTime()
         {
-            if (!DbExists()) return "—";
+            if (!DbExists()) return DateTime.MinValue;
             DateTime newest = DateTime.MinValue;
             foreach (string f in Directory.GetFiles(dbDir))
             {
@@ -122,7 +123,24 @@ namespace AVUI
                 DateTime t = File.GetLastWriteTime(f);
                 if (t > newest) newest = t;
             }
+            return newest;
+        }
+
+        string DbDateString()
+        {
+            DateTime newest = DbNewestTime();
             return newest == DateTime.MinValue ? "—" : newest.ToString("dd.MM.yyyy HH:mm");
+        }
+
+        // A signature database this old (a week offline, or auto-update off) no
+        // longer reflects current threats — the hero turns yellow and the update
+        // button shows, while scanning stays fully enabled. MinValue (no database)
+        // has its own hero state; a future timestamp (clock set back) is not stale.
+        internal const int DbStaleDays = 7;
+        internal static bool DbIsStale(DateTime newest, DateTime now)
+        {
+            if (newest == DateTime.MinValue) return false;
+            return (now - newest).TotalDays >= DbStaleDays;
         }
 
         void RefreshDbStatus()
@@ -136,9 +154,15 @@ namespace AVUI
             }
             if (DbExists())
             {
-                // the update button is visible only when the server actually has a newer database
-                btnUpdate.Visible = updateAvailable;
-                SetHero(ShieldState.Ok, Lang.T("hero.protected"), string.Format(Lang.T("hero.dbFrom"), DbDateString()));
+                // update button: when the server has a newer database, or ours has aged
+                // past the staleness threshold (offline for a week, auto-update off)
+                bool stale = DbIsStale(DbNewestTime(), DateTime.Now);
+                btnUpdate.Visible = updateAvailable || stale;
+                if (stale)
+                    SetHero(ShieldState.Warning, Lang.T("hero.dbStale"),
+                        string.Format(Lang.T("hero.dbStaleSub"), DbDateString()));
+                else
+                    SetHero(ShieldState.Ok, Lang.T("hero.protected"), string.Format(Lang.T("hero.dbFrom"), DbDateString()));
                 SetScanEnabled(!scanRunning && !updateRunning);
             }
             else

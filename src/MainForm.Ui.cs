@@ -1412,7 +1412,7 @@ namespace AVUI
 
             bool db = DbExists();
             setStatusVals[1].Text = db ? DbDateString() : "—";
-            setStatusVals[1].ForeColor = db ? Theme.Good : Theme.Warn;
+            setStatusVals[1].ForeColor = db && !DbIsStale(DbNewestTime(), DateTime.Now) ? Theme.Good : Theme.Warn;
 
             bool mon = chkMonitor.Checked;
             setStatusVals[2].Text = mon

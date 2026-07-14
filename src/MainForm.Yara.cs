@@ -22,6 +22,7 @@ namespace AVUI
         bool yaraEnabled = true;          // settings: yara=0 turns the engine off
         DateTime lastYaraRulesCheck;      // when the Forge rules were last downloaded (persisted)
         volatile bool yaraSetupRunning;   // an engine/rules download is already in flight
+        int yaraSetupFails;               // consecutive download failures (see EnsureYaraSetup)
         string yaraListPath;              // file list of the current scan, reused for the YARA phase
         bool yaraPhasePending;            // a scan is running and YARA should follow the ClamAV part
         int yaraClamCode;                 // ClamAV exit code, held while the YARA phase runs
@@ -101,9 +102,15 @@ namespace AVUI
                         yaraSetupRunning = false;
                         if (fe != null)
                         {
-                            AppendLog(string.Format(Lang.T("log.yaraSetupFailed"), fe), Theme.Warn);
+                            // The hourly auto-update timer retries a due download until it
+                            // succeeds; offline that used to print a warning every hour.
+                            // Only the first failure is a visible warning — repeats go to
+                            // the details view until a download succeeds again.
+                            yaraSetupFails++;
+                            AppendLog(string.Format(Lang.T("log.yaraSetupFailed"), fe), Theme.Warn, "WARN", yaraSetupFails > 1);
                             return;
                         }
+                        yaraSetupFails = 0;
                         lastYaraRulesCheck = DateTime.Now;
                         SaveSettings();
                         AppendLog(string.Format(Lang.T("log.yaraReady"), YaraRuleFiles().Count), Theme.Good);
