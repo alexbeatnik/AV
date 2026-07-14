@@ -267,7 +267,7 @@ namespace AVUI
         void OnYaraExit(int code)
         {
             yaraRunning = false;
-            int extra = 0;
+            int extra = 0, pending = 0;
             foreach (KeyValuePair<string, string> kv in yaraMatches)
             {
                 string path = kv.Key;
@@ -276,27 +276,39 @@ namespace AVUI
                 foreach (string[] ff in foundFiles)
                     if (string.Equals(ff[0], path, StringComparison.OrdinalIgnoreCase)) { known = true; break; }
                 if (known) continue; // ClamAV already reported this file
+                string hash = null;
+                try { hash = Sha256OfQuarFile(path); } catch { }
+                // One community-rule match is a suspicion, not a verdict — Forge
+                // rules do hit legitimate packers/installers. When VirusTotal can
+                // arbitrate, hold the file untouched until the hash verdict arrives
+                // (ResolvePendingYara). RAM dumps can't wait: their temp files are
+                // deleted right after the scan, so they take the immediate path.
+                bool isMemDump = memDumpDir != null && IsUnder(path, memDumpDir);
+                if (VtActive && hash != null && !isMemDump && VtQueueFile(path, hash))
+                {
+                    pending++;
+                    vtPendingYara[path] = threat;
+                    AppendLog(string.Format(Lang.T("log.yaraSuspiciousPending"), path, threat), Theme.Warn, "WARN", false);
+                    continue;
+                }
                 extra++;
                 foundCount++;
                 AppendLog(path + ": " + threat + " FOUND\r\n", Theme.Danger, "INFECTED", false);
-                // suspicious-but-unknown to the signature DB — exactly what the
-                // VirusTotal hash check is for (hash computed before any quarantine move)
-                string hash = null;
-                try { hash = Sha256OfQuarFile(path); } catch { }
-                if (hash != null) VtQueueFile(path, hash);
                 if (chkQuarantine.Checked)
                 {
                     if (QuarantineFile(path, threat, currentScanDesc)) movedCount++;
                 }
                 foundFiles.Add(new string[] { path, threat }); // threat dialog skips files already moved
             }
-            if (extra == 0)
+            if (extra == 0 && pending == 0)
             {
                 if (code != 0) AppendLog(string.Format(Lang.T("log.yaraExitCode"), code), Theme.Warn, "WARN", true);
                 AppendLog(Lang.T("log.yaraClean"), monitorScan ? Theme.Muted : Theme.Good, "OK", monitorScan);
             }
-            else
+            else if (extra > 0)
                 AppendLog(string.Format(Lang.T("log.yaraFound"), extra), Theme.Danger, "INFECTED", false);
+            if (pending > 0)
+                AppendLog(string.Format(Lang.T("log.yaraPendingCount"), pending), Theme.Warn, "WARN", false);
             int final = yaraClamCode;
             if (extra > 0 && final == 0) final = 1; // YARA findings surface the threat flow
             FinishScan(final);

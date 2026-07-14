@@ -1118,7 +1118,14 @@ namespace AVUI
             {
                 statusLabel.Text = string.Format(Lang.T("status.doneClean"), scannedCount);
                 RefreshDbStatus(); // returns to the green "Protected" state
-                if (wasMonitor)
+                if (vtPendingYara.Count > 0)
+                {
+                    // suspicious files are still awaiting the VirusTotal verdict —
+                    // don't announce a clean result that may flip in a minute
+                    AppendLog(string.Format(Lang.T("log.donePendingVt"), vtPendingYara.Count), Theme.Warn, "WARN", false);
+                    Notify(5000, string.Format(Lang.T("tray.donePendingVt"), vtPendingYara.Count), ToolTipIcon.Info);
+                }
+                else if (wasMonitor)
                 {
                     AppendLog(Lang.T("log.newFilesClean"), Theme.Good);
                     Notify(4000, string.Format(Lang.T("tray.newFilesClean"), scannedCount), ToolTipIcon.Info);

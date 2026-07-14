@@ -535,6 +535,30 @@ namespace AVUI
             A("log.vtRateLimited", "VirusTotal rate limit reached — pausing checks for a while.\r\n", "Досягнуто ліміт запитів VirusTotal — перевірки призупинено на деякий час.\r\n");
             A("log.vtBadKey", "VirusTotal rejected the API key — check it in Settings → Engines.\r\n", "VirusTotal відхилив API-ключ — перевір його в Налаштування → Рушії.\r\n");
             A("log.vtError", "VirusTotal error: {0}\r\n", "Помилка VirusTotal: {0}\r\n");
+
+            // YARA suspicion held for the VirusTotal verdict (trust tiers)
+            A("log.yaraSuspiciousPending", "{0}: {1} — suspicious, awaiting the VirusTotal verdict before acting…\r\n",
+                "{0}: {1} — підозріло, чекаю на вердикт VirusTotal перед діями…\r\n");
+            A("log.yaraPendingCount", "YARA: {0} suspicious file(s) sent for a VirusTotal check — nothing is touched until the verdict arrives.\r\n",
+                "YARA: підозрілих файлів надіслано на перевірку VirusTotal: {0} — до вердикту нічого не чіпаю.\r\n");
+            A("log.donePendingVt", "Scan finished; {0} suspicious file(s) are awaiting the VirusTotal verdict — results will appear here.\r\n",
+                "Сканування завершено; файлів в очікуванні вердикту VirusTotal: {0} — результати з'являться тут.\r\n");
+            A("tray.donePendingVt", "Scan finished — {0} suspicious file(s) awaiting the VirusTotal verdict",
+                "Сканування завершено — файлів чекають на вердикт VirusTotal: {0}");
+            A("log.vtYaraLikelyFp", "{0}: clean on VirusTotal (0/{1}) — the {2} match looks like a false positive; the file was left in place.\r\n",
+                "{0}: чистий на VirusTotal (0/{1}) — збіг {2} схожий на хибне спрацювання; файл залишено на місці.\r\n");
+            A("log.vtYaraConfirmed", "VirusTotal confirms the YARA suspicion: {0} of {1} engines flag {2}\r\n",
+                "VirusTotal підтверджує підозру YARA: {0} із {1} рушіїв вважають загрозою {2}\r\n");
+            A("log.vtYaraUnknown", "VirusTotal has never seen {0} ({1}) — still suspicious.\r\n",
+                "VirusTotal ще не бачив {0} ({1}) — файл лишається підозрілим.\r\n");
+            A("log.vtYaraInconclusive", "VirusTotal: only {0} of {1} engines flag {2} — inconclusive.\r\n",
+                "VirusTotal: лише {0} із {1} рушіїв мають підозру щодо {2} — вердикт неоднозначний.\r\n");
+            A("log.vtYaraUnavailable", "No VirusTotal verdict for {0} ({1}) — handling it as a regular detection.\r\n",
+                "Немає вердикту VirusTotal для {0} ({1}) — обробляю як звичайну знахідку.\r\n");
+            A("log.vtYaraQuarantined", "{0} moved to quarantine (it can be restored from the Quarantine page).\r\n",
+                "{0} переміщено в карантин (можна відновити на сторінці «Карантин»).\r\n");
+            A("log.vtPendingGone", "{0} disappeared before the VirusTotal verdict arrived — nothing to do.\r\n",
+                "{0} зник до отримання вердикту VirusTotal — дій не потрібно.\r\n");
         }
     }
 }

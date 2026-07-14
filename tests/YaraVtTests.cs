@@ -89,4 +89,47 @@ namespace AVUI.Tests
             Assert.False(MainForm.VtParseStats("{\"last_analysis_stats\":{\"malicious\":4", out mal, out susp, out total), "no closing brace");
         }
     }
+
+    // Verdict tiers for files flagged only by a YARA rule (held back until the
+    // VirusTotal answer decides quarantine / release / user decision).
+    public static class VtClassifyTests
+    {
+        public static void TestThresholdConfirms()
+        {
+            Assert.Equal(VtVerdict.Confirmed, MainForm.VtClassify(200, 3, 0, 70), "3 engines");
+            Assert.Equal(VtVerdict.Confirmed, MainForm.VtClassify(200, 45, 1, 70), "many engines");
+        }
+
+        public static void TestCleanWithEnoughVerdictsIsLikelyClean()
+        {
+            Assert.Equal(VtVerdict.LikelyClean, MainForm.VtClassify(200, 0, 0, 72), "0/72");
+            Assert.Equal(VtVerdict.LikelyClean, MainForm.VtClassify(200, 0, 0, 20), "exactly at the minimum");
+        }
+
+        public static void TestCleanWithTooFewVerdictsIsInconclusive()
+        {
+            // a 200 whose stats failed to parse (all zeros) must NOT clear the file
+            Assert.Equal(VtVerdict.Inconclusive, MainForm.VtClassify(200, 0, 0, 0), "unparsed stats");
+            Assert.Equal(VtVerdict.Inconclusive, MainForm.VtClassify(200, 0, 0, 19), "below the minimum");
+        }
+
+        public static void TestFewFlagsAreInconclusive()
+        {
+            Assert.Equal(VtVerdict.Inconclusive, MainForm.VtClassify(200, 1, 0, 70), "1 engine");
+            Assert.Equal(VtVerdict.Inconclusive, MainForm.VtClassify(200, 2, 5, 70), "2 engines + suspicious");
+            Assert.Equal(VtVerdict.Inconclusive, MainForm.VtClassify(200, 0, 4, 70), "suspicious only");
+        }
+
+        public static void TestNotFoundIsUnknown()
+        {
+            Assert.Equal(VtVerdict.Unknown, MainForm.VtClassify(404, 0, 0, 0), "404");
+        }
+
+        public static void TestErrorsAreUnavailable()
+        {
+            Assert.Equal(VtVerdict.Unavailable, MainForm.VtClassify(0, 0, 0, 0), "network error");
+            Assert.Equal(VtVerdict.Unavailable, MainForm.VtClassify(401, 0, 0, 0), "bad key");
+            Assert.Equal(VtVerdict.Unavailable, MainForm.VtClassify(500, 0, 0, 0), "server error");
+        }
+    }
 }

@@ -52,7 +52,7 @@ One `MainForm` class split into partial files by concern:
 | `src/MainForm.Install.cs` | per-user install/uninstall, ACL fixes |
 | `src/MainForm.Usb.cs` | USB volume-arrival prompt |
 | `src/MainForm.Yara.cs` | YARA engine: yara64/Forge-rules download, the post-ClamAV scan phase (`OnScanExit` → `RunYaraPhase` → `FinishScan`) |
-| `src/MainForm.VirusTotal.cs` | VT API v3: throttled SHA256 lookups, opt-in uploads |
+| `src/MainForm.VirusTotal.cs` | VT API v3: throttled SHA256 lookups, opt-in uploads, trust tiers (`VtClassify`/`ResolvePendingYara` — YARA-only matches are held untouched until the VT verdict decides quarantine / release / user decision) |
 | `src/MainForm.Engines.cs` | the Settings → engines dialog (YARA toggle, VT key) |
 | `src/Controls.cs`, `src/Icons.cs`, `src/Theme.cs` | custom-drawn controls, glyphs, dark palette |
 | `src/Lang.cs` | the English/Ukrainian string table |

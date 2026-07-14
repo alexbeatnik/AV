@@ -16,12 +16,26 @@ using System.Windows.Forms;
 
 namespace AVUI
 {
+    // What a VirusTotal answer means for a file that only a YARA rule flagged.
+    internal enum VtVerdict
+    {
+        Confirmed,    // enough engines agree — a real threat
+        LikelyClean,  // VT knows the file and no engine flags it — likely a YARA false positive
+        Inconclusive, // a few engines flag it, or too few verdicts to trust a "clean"
+        Unknown,      // VT has never seen the file — stays suspicious
+        Unavailable   // no usable answer (bad key, network error)
+    }
+
     public partial class MainForm : Form
     {
         string vtApiKey = "";        // settings: vtkey= (empty = feature dormant)
         bool vtCheckEnabled = true;  // settings: vtcheck=0 turns hash lookups off
         bool vtUploadEnabled;        // settings: vtupload=1 — OPT-IN, off by default
         readonly List<string[]> vtQueue = new List<string[]>(); // {path, hash-or-null}
+        // Files flagged only by a YARA rule, held back (not quarantined, no threat
+        // dialog) until the VirusTotal verdict arrives: path → "YARA:<rule>"
+        readonly Dictionary<string, string> vtPendingYara
+            = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         Timer vtTimer;
         volatile bool vtBusy;        // a lookup/upload is in flight
         DateTime vtPauseUntil;       // backoff after 429 / rejected key
@@ -32,12 +46,14 @@ namespace AVUI
         bool VtActive { get { return vtCheckEnabled && vtApiKey.Length > 0; } }
 
         // Queues a file for a hash lookup. hash may be null — the worker computes
-        // it then (kept off the UI thread). Runs on the UI thread only.
-        void VtQueueFile(string path, string hash)
+        // it then (kept off the UI thread). Runs on the UI thread only. Returns
+        // false when the item was dropped (feature off / queue full) — a caller
+        // deferring an action until the verdict must not wait in that case.
+        bool VtQueueFile(string path, string hash)
         {
-            if (!VtActive || vtQueue.Count >= 100) return;
+            if (!VtActive || vtQueue.Count >= 100) return false;
             foreach (string[] q in vtQueue)
-                if (string.Equals(q[0], path, StringComparison.OrdinalIgnoreCase)) return;
+                if (string.Equals(q[0], path, StringComparison.OrdinalIgnoreCase)) return true; // already queued
             vtQueue.Add(new string[] { path, hash });
             if (vtTimer == null)
             {
@@ -49,6 +65,7 @@ namespace AVUI
                 vtTimer.Interval = 1000; // first item goes out right away
                 vtTimer.Start();
             }
+            return true;
         }
 
         void OnVtTick()
@@ -134,10 +151,47 @@ namespace AVUI
             return total > 0;
         }
 
+        // Maps a VT lookup outcome to a verdict tier for a YARA-flagged file. A
+        // "clean" answer is only trusted when enough engines actually voted —
+        // a 200 whose stats failed to parse (total 0) must not clear a file.
+        internal static VtVerdict VtClassify(int status, int mal, int susp, int total)
+        {
+            if (status == 200)
+            {
+                if (mal >= VtMaliciousThreshold) return VtVerdict.Confirmed;
+                if (mal == 0 && susp == 0 && total >= 20) return VtVerdict.LikelyClean;
+                return VtVerdict.Inconclusive;
+            }
+            if (status == 404) return VtVerdict.Unknown;
+            return VtVerdict.Unavailable;
+        }
+
         void VtOnResult(string path, string hash, int status, int mal, int susp, int total, string err)
         {
             string name = null;
             try { name = Path.GetFileName(path); } catch { name = path; }
+            if (status == 429)
+            {
+                vtPauseUntil = DateTime.Now.AddMinutes(10);
+                vtQueue.Insert(0, new string[] { path, hash }); // retry after the pause; a pending YARA file stays pending
+                AppendLog(Lang.T("log.vtRateLimited"), Theme.Warn, "WARN", true);
+                return;
+            }
+            if (status == 401 || status == 403)
+            {
+                vtPauseUntil = DateTime.Now.AddHours(1);
+                AppendLog(Lang.T("log.vtBadKey"), Theme.Warn, "WARN", false);
+            }
+            // A file held back on YARA suspicion gets its own resolution path —
+            // this is where "quarantine or not" is actually decided.
+            string yaraThreat;
+            if (vtPendingYara.TryGetValue(path, out yaraThreat))
+            {
+                vtPendingYara.Remove(path);
+                ResolvePendingYara(path, name, yaraThreat, VtClassify(status, mal, susp, total),
+                    mal, susp, total, err != null ? err : "HTTP " + status);
+                return;
+            }
             if (status == 200)
             {
                 if (mal >= VtMaliciousThreshold)
@@ -172,19 +226,61 @@ namespace AVUI
                 if (vtUploadEnabled && File.Exists(path))
                     VtBeginUpload(path);
             }
-            else if (status == 429)
+            else if (status != 401 && status != 403)
+                AppendLog(string.Format(Lang.T("log.vtError"), err != null ? err : "HTTP " + status), Theme.Warn, "WARN", true);
+        }
+
+        // Decides the fate of a file that was held back on a YARA-only match.
+        // Confirmed → the normal threat flow with a combined threat name;
+        // LikelyClean → released, nothing touched; everything else stays a
+        // suspicion: silent quarantine when auto-quarantine is on (the user asked
+        // for hands-off handling), the threat dialog otherwise.
+        void ResolvePendingYara(string path, string name, string yaraThreat, VtVerdict verdict,
+            int mal, int susp, int total, string err)
+        {
+            if (!File.Exists(path))
             {
-                vtPauseUntil = DateTime.Now.AddMinutes(10);
-                vtQueue.Insert(0, new string[] { path, hash }); // retry after the pause
-                AppendLog(Lang.T("log.vtRateLimited"), Theme.Warn, "WARN", true);
+                AppendLog(string.Format(Lang.T("log.vtPendingGone"), name), Theme.Muted, null, true);
+                return;
             }
-            else if (status == 401 || status == 403)
+            if (verdict == VtVerdict.LikelyClean)
             {
-                vtPauseUntil = DateTime.Now.AddHours(1);
-                AppendLog(Lang.T("log.vtBadKey"), Theme.Warn, "WARN", false);
+                AppendLog(string.Format(Lang.T("log.vtYaraLikelyFp"), path, total, yaraThreat), Theme.Good, "OK", false);
+                return;
+            }
+            string threat = yaraThreat;
+            if (verdict == VtVerdict.Confirmed)
+            {
+                threat = yaraThreat + " + VirusTotal " + mal + "/" + total;
+                AppendLog(string.Format(Lang.T("log.vtYaraConfirmed"), mal, total, path), Theme.Danger, "INFECTED", false);
+                tray.ShowBalloonTip(8000, AppName,
+                    string.Format(Lang.T("tray.vtMalicious"), mal, name), ToolTipIcon.Warning); // threat alerts always show
+            }
+            else if (verdict == VtVerdict.Unknown)
+            {
+                AppendLog(string.Format(Lang.T("log.vtYaraUnknown"), name, yaraThreat), Theme.Warn, "WARN", false);
+                // uploading needs the file in place — skip when quarantine is about to move it
+                if (vtUploadEnabled && !chkQuarantine.Checked) VtBeginUpload(path);
+            }
+            else if (verdict == VtVerdict.Inconclusive)
+                AppendLog(string.Format(Lang.T("log.vtYaraInconclusive"), mal + susp, total, path), Theme.Warn, "WARN", false);
+            else // Unavailable
+                AppendLog(string.Format(Lang.T("log.vtYaraUnavailable"), name, err), Theme.Warn, "WARN", false);
+
+            if (chkQuarantine.Checked)
+            {
+                if (QuarantineFile(path, threat, currentScanDesc))
+                {
+                    AppendLog(string.Format(Lang.T("log.vtYaraQuarantined"), name), Theme.Warn, "WARN", false);
+                    SaveSettings();
+                    UpdateStatsUi();
+                }
             }
             else
-                AppendLog(string.Format(Lang.T("log.vtError"), err != null ? err : "HTTP " + status), Theme.Warn, "WARN", true);
+            {
+                foundFiles.Add(new string[] { path, threat });
+                if (!scanRunning) { RestoreFromTray(); ShowThreatDialog(); }
+            }
         }
 
         // ---------- Opt-in upload of files unknown to VirusTotal ----------
