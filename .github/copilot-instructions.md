@@ -20,6 +20,8 @@ must not be "modernized" in suggestions or review comments:
 - No NuGet packages, no third-party libraries, no `.csproj`/`.sln` (file
   lists live in `build.ps1`/`test.ps1`), no image assets (icons are GDI+
   code in `src/Icons.cs`).
+- The main window is fixed-size by design (`FixedSingle`, `MaximizeBox = false`;
+  pages are hand-tuned layouts) — don't suggest making it resizable/responsive.
 - The settings page uses absolute pixel positions by design.
 - UI strings live in `src/Lang.cs`, built in code — no resx, no designer.
 - Quick scan, full scan, and Scan RAM read other processes' memory via `kernel32` P/Invoke

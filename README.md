@@ -172,10 +172,11 @@ Every scanned file follows a multi-stage defense-in-depth security pipeline to i
   don't trip other AVs), with search, sorting, properties incl. SHA256
 - **Exclusions**, **USB scan offer**, **scan performance modes**, readable
   color-coded log with progress and ETA, statistics
-- One-click signature updates, daily auto-checks, app **self-update** from this
-  repo's GitHub Releases
+- One-click signature updates, daily auto-checks (with a **stale-database
+  warning** once the signatures are over a week old), app **self-update** from
+  this repo's GitHub Releases
 - **Portable or installed per-user** (no admin rights) — the first run asks
-  once; tray icon, autostart, single instance, dark theme
+  once; tray icon, autostart, single instance, fixed-size dark-theme window
 
 ## Building
 
