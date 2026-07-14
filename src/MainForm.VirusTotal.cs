@@ -268,20 +268,17 @@ namespace AVUI
             else // Unavailable
                 AppendLog(string.Format(Lang.T("log.vtYaraUnavailable"), name, err), Theme.Warn, "WARN", false);
 
-            if (chkQuarantine.Checked)
+            if (chkQuarantine.Checked && QuarantineFile(path, threat, currentScanDesc))
             {
-                if (QuarantineFile(path, threat, currentScanDesc))
-                {
-                    AppendLog(string.Format(Lang.T("log.vtYaraQuarantined"), name), Theme.Warn, "WARN", false);
-                    SaveSettings();
-                    UpdateStatsUi();
-                }
+                AppendLog(string.Format(Lang.T("log.vtYaraQuarantined"), name), Theme.Warn, "WARN", false);
+                SaveSettings();
+                UpdateStatsUi();
+                return;
             }
-            else
-            {
-                foundFiles.Add(new string[] { path, threat });
-                if (!scanRunning) { RestoreFromTray(); ShowThreatDialog(); }
-            }
+            // no auto-quarantine — or it failed (locked file): either way the user
+            // must still get the threat dialog to decide what happens to the file
+            foundFiles.Add(new string[] { path, threat });
+            if (!scanRunning) { RestoreFromTray(); ShowThreatDialog(); }
         }
 
         // ---------- Opt-in upload of files unknown to VirusTotal ----------
