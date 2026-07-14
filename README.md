@@ -18,7 +18,7 @@
 </p>
 
 A lightweight **multi-engine antivirus for Windows**. Three layers of detection
-in one ~250 KB portable exe with **zero dependencies and zero toolchains** —
+in one ~280 KB portable exe with **zero dependencies and zero toolchains** —
 builds with the `csc.exe` compiler already built into Windows (.NET Framework
 4.8, present on Win10/11):
 
@@ -41,7 +41,7 @@ switchable anytime from Settings.
 Windows Defender is excellent, and this project is not intended to replace it. Instead, it serves as a lightweight power-tool demonstrating how distinct, decoupled malware detection systems can be orchestrated under a single portable dashboard entirely built in C# — keeping resource footprint minimal while maximizing coverage with local signatures, local heuristic rules, and cloud reputational vetting.
 
 ## Resource & Performance Focus
-* **Executable size:** ~250 KB (single portable EXE, zero dependencies)
+* **Executable size:** ~280 KB (single portable EXE, zero dependencies)
 * **Downloads footprint:** ClamAV binary assets and database (~220 MB total) + YARA core ruleset (~15 MB total)
 * **Typical memory profile:**
   * **While Idle:** < 15 MB RAM (in system tray)
@@ -78,8 +78,9 @@ Windows Defender is excellent, and this project is not intended to replace it. I
 Every scan (manual, quick, full, RAM, and the automatic new-file monitor) runs
 in phases over the exact same file list:
 
-1. **ClamAV** scans the files (via the fast `clamd` daemon with parallel
-   workers, falling back to `clamscan` automatically).
+1. **ClamAV** scans the files (manual scans use the fast `clamd` daemon with
+   parallel workers, falling back to `clamscan` automatically; the small
+   new-file batches from the monitor go straight to `clamscan`).
 2. **YARA** re-checks the same list — including the dumped process memory —
    with `yara64 --scan-list`. A ClamAV detection is a *verdict*; a single
    community-rule match is only a *suspicion* (YARA Forge rules do hit
@@ -113,7 +114,7 @@ The YARA engine (`yara64.exe`, from the official
 Forge *core* rule set are downloaded automatically on first run and the rules
 are refreshed weekly. Custom rules go into `yara\rules\custom\`.
 
-Everything is configured in **Settings → ENGINES: YARA / VIRUSTOTAL…** — the
+Everything is configured in **Settings → DETECTION ENGINES…** — the
 YARA toggle and rules maintenance, and the VirusTotal API key (free account at
 [virustotal.com](https://www.virustotal.com/)) with the hash-check and upload
 toggles. The quarantine **Properties** dialog and the **threat dialog** also

@@ -1,10 +1,10 @@
-# Copilot instructions — ClamAV Windows UI
+# Copilot instructions — AV
 
-WinForms app compiled with the `csc.exe` built into Windows (.NET Framework
-4.8, compiler v4.0.30319). One portable exe, zero dependencies, zero
-toolchains. `AGENTS.md` is the full contributor guide; `.claude/skills/`
-holds detailed playbooks (localization, settings-key, testing, release,
-verify). License: Apache 2.0.
+WinForms multi-engine antivirus app compiled with the `csc.exe` built into
+Windows (.NET Framework 4.8, compiler v4.0.30319). One portable exe, zero
+dependencies, zero toolchains. `AGENTS.md` is the full contributor guide
+(localization, settings-key, testing, release and verify rules).
+License: Apache 2.0.
 
 ## Environment constraints — do NOT flag these as issues
 
@@ -22,7 +22,7 @@ must not be "modernized" in suggestions or review comments:
   code in `src/Icons.cs`).
 - The settings page uses absolute pixel positions by design.
 - UI strings live in `src/Lang.cs`, built in code — no resx, no designer.
-- Quick scan reads other processes' memory via `kernel32` P/Invoke
+- Quick scan, full scan, and Scan RAM read other processes' memory via `kernel32` P/Invoke
   (`OpenProcess`/`VirtualQueryEx`/`ReadProcessMemory` in `src/MainForm.MemScan.cs`)
   to scan executable RAM regions — this is intentional (malware detection),
   best-effort, and runs non-elevated: failing to open a protected process is
@@ -60,8 +60,8 @@ must not be "modernized" in suggestions or review comments:
   changes to `.github/workflows/release.yml`, asset names, or versioning in
   `src/AssemblyInfo.cs` must keep the `AV.exe` asset name and strictly
   increasing versions.
-- Committed artifacts: `AV*.exe`, `clamav/`, `settings.ini`,
-  `scans.log`, `quarantine/` must never appear in a PR.
+- Committed artifacts: `AV*.exe`, `clamav/`, `yara/`, `settings.ini`,
+  `scans.log`, `vt.key`, `quarantine/` must never appear in a PR.
 
 ## Review tone
 

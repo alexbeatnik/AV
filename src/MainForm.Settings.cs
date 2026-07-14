@@ -402,7 +402,7 @@ namespace AVUI
             foreach (string d in watchDirs) sb.AppendLine("watch=" + d);
             foreach (string d in exclusions) sb.AppendLine("exclude=" + d);
             try { File.WriteAllText(settingsPath, sb.ToString(), new UTF8Encoding(false)); }
-            catch (Exception ex) { AppendLog("Failed to save settings: " + ex.Message + "\r\n", Theme.Danger); }
+            catch (Exception ex) { AppendLog(string.Format(Lang.T("log.settingsSaveFailed"), ex.Message), Theme.Danger); }
         }
 
         // Writes (or removes, when the key was cleared) vt.key. Called only when
@@ -415,7 +415,7 @@ namespace AVUI
                 if (vtApiKey.Length > 0) File.WriteAllText(vtKeyPath, vtApiKey, new UTF8Encoding(false));
                 else if (File.Exists(vtKeyPath)) File.Delete(vtKeyPath);
             }
-            catch (Exception ex) { AppendLog("Failed to save the API key: " + ex.Message + "\r\n", Theme.Danger); }
+            catch (Exception ex) { AppendLog(string.Format(Lang.T("log.vtKeySaveFailed"), ex.Message), Theme.Danger); }
         }
 
     }

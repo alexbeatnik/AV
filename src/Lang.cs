@@ -591,6 +591,10 @@ namespace AVUI
                 "YARA: пропущено файлів: {0} — у їхніх шляхах є символи, які рушій YARA не може відкрити.\r\n");
             A("log.yaraMoreErrors", "YARA: …and {0} more warning/error line(s) hidden.\r\n",
                 "YARA: …і ще рядків попереджень/помилок: {0} (приховано).\r\n");
+
+            // Save-failure diagnostics
+            A("log.settingsSaveFailed", "Failed to save settings: {0}\r\n", "Не вдалося зберегти налаштування: {0}\r\n");
+            A("log.vtKeySaveFailed", "Failed to save the API key: {0}\r\n", "Не вдалося зберегти API-ключ: {0}\r\n");
         }
     }
 }

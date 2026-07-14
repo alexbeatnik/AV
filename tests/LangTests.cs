@@ -60,6 +60,21 @@ namespace AVUI.Tests
             }
         }
 
+        public static void TestSaveErrorKeysExistInBothLanguages()
+        {
+            // save-failure diagnostics moved from hardcoded English into the table
+            string[] keys = { "log.settingsSaveFailed", "log.vtKeySaveFailed" };
+            foreach (string key in keys)
+            {
+                string en, uk;
+                using (new LangScope(Lang.Language.English)) en = Lang.T(key);
+                using (new LangScope(Lang.Language.Ukrainian)) uk = Lang.T(key);
+                Assert.True(en != key, key + " exists in English");
+                Assert.True(uk != key && uk != en, key + " has its own Ukrainian translation");
+                Assert.True(en.Contains("{0}") && uk.Contains("{0}"), key + " keeps {0} in both languages");
+            }
+        }
+
         public static void TestFirstRunChoiceKeepsBothPlaceholders()
         {
             // {0} = the portable folder, {1} = the per-user install dir (added in
