@@ -1,5 +1,7 @@
-// The "Detection engines" dialog (Settings → YARA / VIRUSTOTAL…): the YARA
-// toggle with rules maintenance, and the VirusTotal API key + privacy toggles.
+// The "Detection engines" dialog (Settings → ENGINES…): three uniform cards —
+// ClamAV (core engine, status only), YARA (toggle + rules maintenance), and
+// VirusTotal (API key with a TEST KEY probe + privacy toggles). Every card
+// leads with a colored ● status line so the state of each engine is obvious.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -17,7 +19,7 @@ namespace AVUI
             using (var dlg = new Form())
             {
                 dlg.Text = Lang.T("engines.title");
-                dlg.ClientSize = new Size(640, 520);
+                dlg.ClientSize = new Size(640, 698);
                 dlg.StartPosition = FormStartPosition.CenterParent;
                 dlg.MinimizeBox = dlg.MaximizeBox = false;
                 dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -26,30 +28,67 @@ namespace AVUI
                 dlg.Font = Font;
                 Theme.DarkTitleBar(dlg);
 
-                Func<string, int, Label> header = delegate(string text, int y)
+                // Labels on a card surface share the same setup
+                Func<int, int, Label> mkLabel = delegate(int x, int y)
                 {
                     var l = new Label();
-                    l.Text = text.ToUpperInvariant();
-                    l.Font = new Font("Segoe UI Semibold", 9f);
-                    l.ForeColor = Theme.Accent;
-                    l.BackColor = Theme.Bg;
                     l.AutoSize = true;
-                    l.Location = new Point(24, y);
+                    l.BackColor = Theme.Card;
+                    l.ForeColor = Theme.Text;
+                    l.Location = new Point(x, y);
                     return l;
                 };
 
-                // ---- YARA ----
-                var yaraHead = header("YARA", 18);
+                // ---- Card 1: ClamAV (the core engine — no toggle, status only) ----
+                var cardClam = new CardPanel(Lang.T("stat.clamav"));
+                cardClam.SetBounds(24, 16, 592, 118);
 
-                var tglYara = new Toggle(Lang.T("settings.yaraEnabled"));
-                tglYara.BackColor = Theme.Bg;
-                tglYara.Location = new Point(24, 46);
-                tglYara.Checked = yaraEnabled;
+                var clamStatus = mkLabel(16, 42);
+                bool haveDb = DbExists();
+                if (clamDir != null && haveDb)
+                {
+                    clamStatus.Text = "● " + string.Format(Lang.T("engines.clamavReady"), clamVersion, DbDateString());
+                    clamStatus.ForeColor = Theme.Good;
+                }
+                else if (clamDir != null)
+                {
+                    clamStatus.Text = "● " + Lang.T("engines.clamavNoDb");
+                    clamStatus.ForeColor = Theme.Warn;
+                }
+                else
+                {
+                    clamStatus.Text = "● " + Lang.T("engines.clamavMissing");
+                    clamStatus.ForeColor = Theme.Warn;
+                }
 
-                var yaraStatus = new Label();
-                yaraStatus.AutoSize = true;
-                yaraStatus.BackColor = Theme.Bg;
-                yaraStatus.Location = new Point(24, 82);
+                // per-database-file versions — the dashboard strip shows only daily
+                var clamDbLine = mkLabel(16, 64);
+                clamDbLine.ForeColor = Theme.Muted;
+                if (haveDb)
+                {
+                    var parts = new List<string>();
+                    foreach (string name in new string[] { "main", "daily", "bytecode" })
+                    {
+                        long ver = LocalCvdVersion(Path.Combine(dbDir, name + ".cvd"));
+                        if (ver == 0) ver = LocalCvdVersion(Path.Combine(dbDir, name + ".cld"));
+                        parts.Add(name + (ver > 0 ? " v" + ver : " —"));
+                    }
+                    clamDbLine.Text = string.Join("  ·  ", parts.ToArray());
+                }
+
+                var clamNote = mkLabel(16, 86);
+                clamNote.Text = Lang.T("engines.clamavCore");
+                clamNote.ForeColor = Theme.Muted;
+
+                cardClam.Controls.Add(clamStatus);
+                cardClam.Controls.Add(clamDbLine);
+                cardClam.Controls.Add(clamNote);
+
+                // ---- Card 2: YARA ----
+                var cardYara = new CardPanel(Lang.T("stat.yara"));
+                cardYara.SetBounds(24, 146, 592, 180);
+
+                var yaraStatus = mkLabel(16, 42);
                 Action refreshYaraStatus = delegate
                 {
                     bool exe = File.Exists(YaraExe);
@@ -58,24 +97,30 @@ namespace AVUI
                         ? File.GetLastWriteTime(YaraForgeRules).ToString("dd.MM.yyyy") : "—";
                     if (exe && rules > 0)
                     {
-                        yaraStatus.Text = string.Format(Lang.T("engines.yaraStatusReady"), rules, rulesDate);
+                        yaraStatus.Text = "● " + string.Format(Lang.T("engines.yaraStatusReady"), rules, rulesDate);
                         yaraStatus.ForeColor = Theme.Good;
                     }
                     else if (yaraSetupRunning)
                     {
-                        yaraStatus.Text = Lang.T("engines.yaraStatusDownloading");
+                        yaraStatus.Text = "● " + Lang.T("engines.yaraStatusDownloading");
                         yaraStatus.ForeColor = Theme.Warn;
                     }
                     else
                     {
-                        yaraStatus.Text = Lang.T("engines.yaraStatusMissing");
+                        yaraStatus.Text = "● " + Lang.T("engines.yaraStatusMissing");
                         yaraStatus.ForeColor = Theme.Warn;
                     }
                 };
                 refreshYaraStatus();
 
-                var btnRules = MakeButton(Lang.T("btn.updateYaraRules"), 220, Theme.Card, Theme.CardLine, Ico.Refresh);
-                btnRules.Location = new Point(24, 112);
+                var tglYara = new Toggle(Lang.T("settings.yaraEnabled"));
+                tglYara.BackColor = Theme.Card;
+                tglYara.Location = new Point(16, 68);
+                tglYara.Checked = yaraEnabled;
+
+                var btnRules = MakeLightButton(Lang.T("btn.updateYaraRules"), Ico.Refresh);
+                btnRules.BackColor = Theme.Card; // corners show the card surface through them
+                btnRules.SetBounds(16, 102, 220, 30);
                 btnRules.Click += delegate
                 {
                     yaraEnabled = true;
@@ -84,8 +129,9 @@ namespace AVUI
                     refreshYaraStatus();
                     statusLabel.Text = Lang.T("status.yaraUpdating");
                 };
-                var btnCustom = MakeButton(Lang.T("btn.customRules"), 260, Theme.Card, Theme.CardLine, Ico.FolderIcon);
-                btnCustom.Location = new Point(254, 112);
+                var btnCustom = MakeLightButton(Lang.T("btn.customRules"), Ico.FolderIcon);
+                btnCustom.BackColor = Theme.Card;
+                btnCustom.SetBounds(246, 102, 240, 30);
                 btnCustom.Click += delegate
                 {
                     try
@@ -99,21 +145,41 @@ namespace AVUI
                 var yaraHint = new Label();
                 yaraHint.Text = Lang.T("engines.yaraHint");
                 yaraHint.ForeColor = Theme.Muted;
-                yaraHint.BackColor = Theme.Bg;
-                yaraHint.SetBounds(24, 152, dlg.ClientSize.Width - 48, 46);
+                yaraHint.BackColor = Theme.Card;
+                yaraHint.SetBounds(16, 140, 560, 32);
 
-                // ---- VirusTotal ----
-                var vtHead = header("VirusTotal", 212);
+                cardYara.Controls.Add(yaraStatus);
+                cardYara.Controls.Add(tglYara);
+                cardYara.Controls.Add(btnRules);
+                cardYara.Controls.Add(btnCustom);
+                cardYara.Controls.Add(yaraHint);
 
-                var keyLabel = new Label();
+                // ---- Card 3: VirusTotal ----
+                var cardVt = new CardPanel(Lang.T("stat.virustotal"));
+                cardVt.SetBounds(24, 338, 592, 296);
+
+                var vtStatus = mkLabel(16, 42);
+                if (vtApiKey.Length == 0)
+                {
+                    vtStatus.Text = "● " + Lang.T("engines.vtStatusNoKey");
+                    vtStatus.ForeColor = Theme.Warn;
+                }
+                else if (!vtCheckEnabled)
+                {
+                    vtStatus.Text = "● " + Lang.T("sval.disabled");
+                    vtStatus.ForeColor = Theme.Muted;
+                }
+                else
+                {
+                    vtStatus.Text = "● " + Lang.T("engines.vtStatusOn");
+                    vtStatus.ForeColor = Theme.Good;
+                }
+
+                var keyLabel = mkLabel(16, 70);
                 keyLabel.Text = Lang.T("engines.vtKeyLabel");
-                keyLabel.AutoSize = true;
-                keyLabel.ForeColor = Theme.Text;
-                keyLabel.BackColor = Theme.Bg;
-                keyLabel.Location = new Point(24, 242);
 
                 var keyBox = new TextBox();
-                keyBox.SetBounds(24, 264, 450, 26);
+                keyBox.SetBounds(16, 92, 400, 26);
                 keyBox.BorderStyle = BorderStyle.FixedSingle;
                 keyBox.BackColor = Theme.LogBg;
                 keyBox.ForeColor = Theme.Text;
@@ -123,8 +189,8 @@ namespace AVUI
                 var keyLink = new LinkLabel();
                 keyLink.Text = Lang.T("engines.vtGetKey");
                 keyLink.AutoSize = true;
-                keyLink.Location = new Point(482, 268);
-                keyLink.BackColor = Theme.Bg;
+                keyLink.Location = new Point(428, 96);
+                keyLink.BackColor = Theme.Card;
                 keyLink.LinkColor = Theme.Accent;
                 keyLink.ActiveLinkColor = Theme.AccentHot;
                 keyLink.LinkBehavior = LinkBehavior.HoverUnderline;
@@ -133,21 +199,59 @@ namespace AVUI
                     try { Process.Start("https://www.virustotal.com/gui/my-apikey"); } catch { }
                 };
 
+                var btnTest = MakeLightButton(Lang.T("btn.testKey"), Ico.Radar);
+                btnTest.BackColor = Theme.Card;
+                btnTest.SetBounds(16, 128, 180, 30);
+                var testResult = mkLabel(208, 135);
+                testResult.ForeColor = Theme.Muted;
+                btnTest.Click += delegate
+                {
+                    string k = keyBox.Text.Trim();
+                    if (k.Length == 0)
+                    {
+                        testResult.Text = Lang.T("engines.vtKeyEmpty");
+                        testResult.ForeColor = Theme.Warn;
+                        return;
+                    }
+                    testResult.Text = Lang.T("engines.vtTesting");
+                    testResult.ForeColor = Theme.Muted;
+                    btnTest.Enabled = false;
+                    VtTestKey(k, delegate(bool ok, string msg, Color color)
+                    {
+                        if (dlg.IsDisposed) return; // dialog closed before the probe returned
+                        btnTest.Enabled = true;
+                        testResult.Text = msg;
+                        testResult.ForeColor = color;
+                        // a proven-good key must not sit out an old bad-key backoff
+                        if (ok) vtPauseUntil = DateTime.MinValue;
+                    });
+                };
+
                 var tglVtCheck = new Toggle(Lang.T("settings.vtCheck"));
-                tglVtCheck.BackColor = Theme.Bg;
-                tglVtCheck.Location = new Point(24, 304);
+                tglVtCheck.BackColor = Theme.Card;
+                tglVtCheck.Location = new Point(16, 168);
                 tglVtCheck.Checked = vtCheckEnabled;
 
                 var tglVtUpload = new Toggle(Lang.T("settings.vtUpload"));
-                tglVtUpload.BackColor = Theme.Bg;
-                tglVtUpload.Location = new Point(24, 340);
+                tglVtUpload.BackColor = Theme.Card;
+                tglVtUpload.Location = new Point(16, 200);
                 tglVtUpload.Checked = vtUploadEnabled;
 
                 var vtHint = new Label();
                 vtHint.Text = Lang.T("engines.vtHint");
                 vtHint.ForeColor = Theme.Muted;
-                vtHint.BackColor = Theme.Bg;
-                vtHint.SetBounds(24, 380, dlg.ClientSize.Width - 48, 78);
+                vtHint.BackColor = Theme.Card;
+                vtHint.SetBounds(16, 234, 560, 56);
+
+                cardVt.Controls.Add(vtStatus);
+                cardVt.Controls.Add(keyLabel);
+                cardVt.Controls.Add(keyBox);
+                cardVt.Controls.Add(keyLink);
+                cardVt.Controls.Add(btnTest);
+                cardVt.Controls.Add(testResult);
+                cardVt.Controls.Add(tglVtCheck);
+                cardVt.Controls.Add(tglVtUpload);
+                cardVt.Controls.Add(vtHint);
 
                 var buttons = new FlowLayoutPanel();
                 buttons.Dock = DockStyle.Bottom;
@@ -157,38 +261,151 @@ namespace AVUI
                 buttons.BackColor = Theme.Bg;
                 var cancel = MakeButton(Lang.T("btn.cancel"), 100, Theme.Card, Theme.Bg, Ico.Close);
                 cancel.DialogResult = DialogResult.Cancel;
-                var ok = MakeButton("OK", 90, Theme.Accent, Theme.AccentHot, Ico.Check);
-                ok.DialogResult = DialogResult.OK;
+                var ok2 = MakeButton("OK", 90, Theme.Accent, Theme.AccentHot, Ico.Check);
+                ok2.DialogResult = DialogResult.OK;
                 buttons.Controls.Add(cancel);
-                buttons.Controls.Add(ok);
+                buttons.Controls.Add(ok2);
 
-                dlg.Controls.Add(yaraHead);
-                dlg.Controls.Add(tglYara);
-                dlg.Controls.Add(yaraStatus);
-                dlg.Controls.Add(btnRules);
-                dlg.Controls.Add(btnCustom);
-                dlg.Controls.Add(yaraHint);
-                dlg.Controls.Add(vtHead);
-                dlg.Controls.Add(keyLabel);
-                dlg.Controls.Add(keyBox);
-                dlg.Controls.Add(keyLink);
-                dlg.Controls.Add(tglVtCheck);
-                dlg.Controls.Add(tglVtUpload);
-                dlg.Controls.Add(vtHint);
+                dlg.Controls.Add(cardClam);
+                dlg.Controls.Add(cardYara);
+                dlg.Controls.Add(cardVt);
                 dlg.Controls.Add(buttons);
-                dlg.AcceptButton = ok;
+                dlg.AcceptButton = ok2;
                 dlg.CancelButton = cancel;
 
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
 
                 bool wasEnabled = yaraEnabled;
+                bool keyChanged = !string.Equals(vtApiKey, keyBox.Text.Trim());
                 yaraEnabled = tglYara.Checked;
                 vtApiKey = keyBox.Text.Trim();
                 vtCheckEnabled = tglVtCheck.Checked;
                 vtUploadEnabled = tglVtUpload.Checked;
+                // a fresh key must not inherit the previous key's 401/403 backoff
+                if (keyChanged) vtPauseUntil = DateTime.MinValue;
+                if (keyChanged) SaveVtKey(); // the key lives in vt.key, not settings.ini
                 SaveSettings();
                 if (yaraEnabled && (!wasEnabled || !YaraReady())) EnsureYaraSetup(false);
                 UpdateStatsUi(); // the dashboard engine cells reflect the new state
+                statusLabel.Text = Lang.T("status.enginesSaved");
+            }
+        }
+
+        // Compact "enter your VirusTotal key" dialog for the dashboard
+        // call-to-action button — pasting a key shouldn't require finding the
+        // full engines dialog in Settings.
+        void ShowVtKeyDialog()
+        {
+            using (var dlg = new Form())
+            {
+                dlg.Text = Lang.T("vtkey.title");
+                dlg.ClientSize = new Size(520, 262);
+                dlg.StartPosition = FormStartPosition.CenterParent;
+                dlg.MinimizeBox = dlg.MaximizeBox = false;
+                dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dlg.BackColor = Theme.Bg;
+                dlg.ForeColor = Theme.Text;
+                dlg.Font = Font;
+                Theme.DarkTitleBar(dlg);
+
+                var intro = new Label();
+                intro.Text = Lang.T("vtkey.intro");
+                intro.ForeColor = Theme.Muted;
+                intro.BackColor = Theme.Bg;
+                intro.SetBounds(24, 16, 472, 44);
+
+                var keyLabel = new Label();
+                keyLabel.Text = Lang.T("engines.vtKeyLabel");
+                keyLabel.AutoSize = true;
+                keyLabel.ForeColor = Theme.Text;
+                keyLabel.BackColor = Theme.Bg;
+                keyLabel.Location = new Point(24, 66);
+
+                var keyBox = new TextBox();
+                keyBox.SetBounds(24, 88, 472, 26);
+                keyBox.BorderStyle = BorderStyle.FixedSingle;
+                keyBox.BackColor = Theme.LogBg;
+                keyBox.ForeColor = Theme.Text;
+                keyBox.Font = new Font("Consolas", 9.5f);
+                keyBox.Text = vtApiKey;
+
+                var keyLink = new LinkLabel();
+                keyLink.Text = Lang.T("vtkey.getFree");
+                keyLink.AutoSize = true;
+                keyLink.Location = new Point(24, 122);
+                keyLink.BackColor = Theme.Bg;
+                keyLink.LinkColor = Theme.Accent;
+                keyLink.ActiveLinkColor = Theme.AccentHot;
+                keyLink.LinkBehavior = LinkBehavior.HoverUnderline;
+                keyLink.LinkClicked += delegate
+                {
+                    try { Process.Start("https://www.virustotal.com/gui/my-apikey"); } catch { }
+                };
+
+                var btnTest = MakeLightButton(Lang.T("btn.testKey"), Ico.Radar);
+                btnTest.BackColor = Theme.Bg;
+                btnTest.SetBounds(24, 154, 180, 30);
+                var testResult = new Label();
+                testResult.AutoSize = true;
+                testResult.BackColor = Theme.Bg;
+                testResult.ForeColor = Theme.Muted;
+                testResult.Location = new Point(216, 161);
+                btnTest.Click += delegate
+                {
+                    string k = keyBox.Text.Trim();
+                    if (k.Length == 0)
+                    {
+                        testResult.Text = Lang.T("engines.vtKeyEmpty");
+                        testResult.ForeColor = Theme.Warn;
+                        return;
+                    }
+                    testResult.Text = Lang.T("engines.vtTesting");
+                    testResult.ForeColor = Theme.Muted;
+                    btnTest.Enabled = false;
+                    VtTestKey(k, delegate(bool ok, string msg, Color color)
+                    {
+                        if (dlg.IsDisposed) return;
+                        btnTest.Enabled = true;
+                        testResult.Text = msg;
+                        testResult.ForeColor = color;
+                        if (ok) vtPauseUntil = DateTime.MinValue;
+                    });
+                };
+
+                var buttons = new FlowLayoutPanel();
+                buttons.Dock = DockStyle.Bottom;
+                buttons.FlowDirection = FlowDirection.RightToLeft;
+                buttons.Height = 52;
+                buttons.Padding = new Padding(10);
+                buttons.BackColor = Theme.Bg;
+                var cancel = MakeButton(Lang.T("btn.cancel"), 100, Theme.Card, Theme.Bg, Ico.Close);
+                cancel.DialogResult = DialogResult.Cancel;
+                var ok2 = MakeButton("OK", 90, Theme.Accent, Theme.AccentHot, Ico.Check);
+                ok2.DialogResult = DialogResult.OK;
+                buttons.Controls.Add(cancel);
+                buttons.Controls.Add(ok2);
+
+                dlg.Controls.Add(intro);
+                dlg.Controls.Add(keyLabel);
+                dlg.Controls.Add(keyBox);
+                dlg.Controls.Add(keyLink);
+                dlg.Controls.Add(btnTest);
+                dlg.Controls.Add(testResult);
+                dlg.Controls.Add(buttons);
+                dlg.AcceptButton = ok2;
+                dlg.CancelButton = cancel;
+
+                if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+                bool keyChanged = !string.Equals(vtApiKey, keyBox.Text.Trim());
+                vtApiKey = keyBox.Text.Trim();
+                if (keyChanged)
+                {
+                    vtPauseUntil = DateTime.MinValue;
+                    SaveVtKey();
+                }
+                SaveSettings();
+                UpdateStatsUi(); // hides the call-to-action once a key is present
                 statusLabel.Text = Lang.T("status.enginesSaved");
             }
         }

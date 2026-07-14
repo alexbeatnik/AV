@@ -33,6 +33,7 @@ namespace AVUI
             BuildUi();
             LocateClamAV();
             LoadSettings();
+            SyncUninstallVersion(); // a self-updated exe must show its real version in Settings → Apps
             RefreshDbStatus();
             ShowPage(0);
             EnsureAutostartFirstRun();
@@ -161,7 +162,8 @@ namespace AVUI
 
             // Auto-update: first check 15s after startup, then the timer ticks hourly.
             // The actual checks are throttled further: database versions once a day
-            // (the CDN rate-limits), app releases on GitHub every 4 hours
+            // (the CDN rate-limits); app releases on GitHub are checked on every
+            // launch (the first tick ignores the persisted timestamp) and then daily
             autoUpdateTimer = new Timer();
             autoUpdateTimer.Interval = 15000;
             autoUpdateTimer.Tick += delegate
@@ -324,6 +326,31 @@ namespace AVUI
             dbStrip.Dock = DockStyle.Top;
             dbStrip.Height = 66;
             dbStrip.Padding = new Padding(0, 10, 12, 14);
+
+            // One-click fixes for engines that need the user's help, right next to
+            // the engine cells that show the problem (the user shouldn't have to
+            // find Settings → Engines). Visibility is managed by UpdateStatsUi.
+            btnGetYara = MakeLightButton(Lang.T("btn.getYara"), Ico.Download);
+            btnGetYara.BackColor = Theme.Card;
+            btnGetYara.Width = 250;
+            btnGetYara.Dock = DockStyle.Right;
+            btnGetYara.Visible = false;
+            btnGetYara.Click += delegate
+            {
+                yaraEnabled = true;
+                SaveSettings();
+                EnsureYaraSetup(false);
+                statusLabel.Text = Lang.T("status.yaraUpdating");
+                UpdateStatsUi(); // hides the button while the download runs
+            };
+            btnEnterVtKey = MakeLightButton(Lang.T("btn.enterVtKey"), Ico.Radar);
+            btnEnterVtKey.BackColor = Theme.Card;
+            btnEnterVtKey.Width = 250;
+            btnEnterVtKey.Dock = DockStyle.Right;
+            btnEnterVtKey.Visible = false;
+            btnEnterVtKey.Click += delegate { ShowVtKeyDialog(); };
+            dbStrip.Controls.Add(btnGetYara);
+            dbStrip.Controls.Add(btnEnterVtKey);
 
             // Last-activity strip: one line instead of a scrollable log card — the
             // full history is one click away via "Open Log File", so the dashboard
@@ -1476,6 +1503,8 @@ namespace AVUI
             btnFixWinTemp.Text = Lang.T("btn.fixWinTemp");
             btnAbout.Text = Lang.T("btn.about");
             btnEngines.Text = Lang.T("btn.engines");
+            btnGetYara.Text = Lang.T("btn.getYara");
+            btnEnterVtKey.Text = Lang.T("btn.enterVtKey");
 
             trayOpenItem.Text = Lang.T("tray.open");
             trayExitItem.Text = Lang.T("tray.exit");

@@ -20,17 +20,26 @@ namespace AVUI
         // ---------- Self-update: check GitHub Releases for a newer AV.exe ----------
 
         const string UpdateApiUrl = "https://api.github.com/repos/alexbeatnik/AV/releases/latest";
-        // Every 4 hours: the GitHub API allows 60 unauthenticated requests/hour per
-        // address, so 6 tiny requests a day are nowhere near any limit — unlike the
-        // ClamAV database CDN (see dbCooldownUntil), which does rate-limit (429).
-        const int AppUpdateCheckHours = 4;
+        // On every launch plus once a day while running. One tiny GitHub API
+        // request — the 60 unauthenticated requests/hour limit is nowhere near
+        // (unlike the ClamAV database CDN, see dbCooldownUntil, which does 429).
+        const int AppUpdateCheckHours = 24;
         DateTime lastAppUpdateCheck; // time of the last check (persisted)
         bool checkingAppUpdate;      // a check/download is already in flight
+        bool startupAppCheckDone;    // this launch already ran its unconditional check
+
+        // Pure due-time rule (unit-tested): the first check of a launch always
+        // fires; after that the daily period applies.
+        internal static bool AppUpdateDue(bool startupChecked, DateTime last, DateTime now, int periodHours)
+        {
+            return !startupChecked || (now - last).TotalHours >= periodHours;
+        }
 
         void MaybeCheckAppUpdate()
         {
             if (checkingAppUpdate || scanRunning || updateRunning) return;
-            if ((DateTime.Now - lastAppUpdateCheck).TotalHours < AppUpdateCheckHours) return;
+            if (!AppUpdateDue(startupAppCheckDone, lastAppUpdateCheck, DateTime.Now, AppUpdateCheckHours)) return;
+            startupAppCheckDone = true; // set only when a check actually launches
             checkingAppUpdate = true;
             System.Threading.ThreadPool.QueueUserWorkItem(delegate { AppUpdateWorker(); });
         }
@@ -477,69 +486,83 @@ namespace AVUI
         // (freshclam may have converted a .cvd to .cld — whichever is present wins),
         // the total signature count, and the status of the two other detection
         // layers — YARA rules and the VirusTotal hash check.
+        // The engines strip: ClamAV, its database, signature count, YARA, and
+        // VirusTotal — every engine's state in one compact row (see UpdateStatsUi).
+        // Five cells on purpose: the call-to-action buttons dock on the right of
+        // this strip, and the row must stay readable next to them at the default
+        // window width. Per-file cvd versions live in the ClamAV card (Engines).
         void DbStripData(out string[] caps, out string[] vals, out Color[] colors)
         {
+            caps = new string[5];
+            vals = new string[5];
+            colors = new Color[5];
+
+            // ClamAV: the core engine's version, green once it's present with a database
+            caps[0] = Lang.T("stat.clamav");
+            vals[0] = clamVersion;
+            colors[0] = clamDir != null && DbExists() ? Theme.Good : Theme.Warn;
+
+            // Database: the daily.cvd version (the file that actually changes every
+            // day); the database date is already in the hero. Signature count sums
+            // all three files.
+            long sigs = 0, dailyVer = 0;
             string[] names = { "main", "daily", "bytecode" };
-            caps = new string[names.Length + 3];
-            vals = new string[names.Length + 3];
-            colors = new Color[names.Length + 3];
-            long sigs = 0;
-            for (int i = 0; i < names.Length; i++)
+            foreach (string name in names)
             {
-                string file = names[i] + ".cvd";
-                long ver = 0;
-                if (dbDir != null)
+                if (dbDir == null) break;
+                string file = Path.Combine(dbDir, name + ".cvd");
+                long ver = LocalCvdVersion(file);
+                if (ver == 0)
                 {
-                    ver = LocalCvdVersion(Path.Combine(dbDir, file));
-                    if (ver == 0)
-                    {
-                        long cld = LocalCvdVersion(Path.Combine(dbDir, names[i] + ".cld"));
-                        if (cld > 0) { file = names[i] + ".cld"; ver = cld; }
-                    }
-                    if (ver > 0) sigs += LocalCvdField(Path.Combine(dbDir, file), 3);
+                    string cld = Path.Combine(dbDir, name + ".cld");
+                    long cldVer = LocalCvdVersion(cld);
+                    if (cldVer > 0) { file = cld; ver = cldVer; }
                 }
-                caps[i] = file;
-                vals[i] = ver > 0 ? "v" + ver : "—";
+                if (ver > 0) sigs += LocalCvdField(file, 3);
+                if (name == "daily") dailyVer = ver;
             }
-            caps[names.Length] = Lang.T("stat.signatures");
-            vals[names.Length] = sigs > 0 ? sigs.ToString("#,0") : "—";
+            caps[1] = Lang.T("stat.database");
+            vals[1] = dailyVer > 0 ? "v" + dailyVer : "—";
+            if (dailyVer == 0) colors[1] = Theme.Warn;
+            caps[2] = Lang.T("stat.signatures");
+            vals[2] = sigs > 0 ? sigs.ToString("#,0") : "—";
 
             // YARA: ✓ + rules date when ready, otherwise why it isn't
-            caps[names.Length + 1] = Lang.T("stat.yara");
+            caps[3] = Lang.T("stat.yara");
             if (!yaraEnabled)
             {
-                vals[names.Length + 1] = Lang.T("sval.disabled");
-                colors[names.Length + 1] = Theme.Muted;
+                vals[3] = Lang.T("sval.disabled");
+                colors[3] = Theme.Muted;
             }
             else if (YaraReady())
             {
                 string when = File.Exists(YaraForgeRules)
                     ? File.GetLastWriteTime(YaraForgeRules).ToString("dd.MM.yyyy") : "";
-                vals[names.Length + 1] = ("✓ " + when).TrimEnd();
-                colors[names.Length + 1] = Theme.Good;
+                vals[3] = ("✓ " + when).TrimEnd();
+                colors[3] = Theme.Good;
             }
             else
             {
-                vals[names.Length + 1] = yaraSetupRunning ? Lang.T("sval.downloading") : "—";
-                colors[names.Length + 1] = Theme.Warn;
+                vals[3] = yaraSetupRunning ? Lang.T("sval.downloading") : "—";
+                colors[3] = Theme.Warn;
             }
 
             // VirusTotal: enabled with a key / no key yet / switched off
-            caps[names.Length + 2] = Lang.T("stat.virustotal");
+            caps[4] = Lang.T("stat.virustotal");
             if (vtApiKey.Length == 0)
             {
-                vals[names.Length + 2] = Lang.T("sval.vtNoKey");
-                colors[names.Length + 2] = Theme.Warn;
+                vals[4] = Lang.T("sval.vtNoKey");
+                colors[4] = Theme.Warn;
             }
             else if (!vtCheckEnabled)
             {
-                vals[names.Length + 2] = Lang.T("sval.disabled");
-                colors[names.Length + 2] = Theme.Muted;
+                vals[4] = Lang.T("sval.disabled");
+                colors[4] = Theme.Muted;
             }
             else
             {
-                vals[names.Length + 2] = "✓ " + Lang.T("sval.enabled");
-                colors[names.Length + 2] = Theme.Good;
+                vals[4] = "✓ " + Lang.T("sval.enabled");
+                colors[4] = Theme.Good;
             }
         }
 

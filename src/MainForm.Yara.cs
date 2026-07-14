@@ -25,6 +25,7 @@ namespace AVUI
         string yaraListPath;              // file list of the current scan, reused for the YARA phase
         bool yaraPhasePending;            // a scan is running and YARA should follow the ClamAV part
         int yaraClamCode;                 // ClamAV exit code, held while the YARA phase runs
+        DateTime yaraPhaseStart;          // when the YARA phase of this scan began (MinValue = didn't run)
         volatile bool yaraRunning;        // the yara64 process is scanning (heartbeat message)
         readonly Dictionary<string, string> yaraMatches
             = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // path → rule
@@ -210,11 +211,59 @@ namespace AVUI
             RunYaraPhase(exitCode);
         }
 
+        // Filters out paths the given ANSI code page cannot represent (they'd be
+        // unopenable for yara64 anyway) — the survivors round-trip losslessly, so
+        // yara's output maps back to the exact original path strings.
+        internal static List<string> AnsiSafePaths(List<string> paths, Encoding ansi, out int skipped)
+        {
+            var res = new List<string>(paths.Count);
+            skipped = 0;
+            foreach (string p in paths)
+            {
+                if (ansi.GetString(ansi.GetBytes(p)) == p) res.Add(p);
+                else skipped++;
+            }
+            return res;
+        }
+
         void RunYaraPhase(int clamCode)
         {
             yaraClamCode = clamCode;
+            yaraPhaseStart = DateTime.Now;
             yaraMatches.Clear();
+            yaraErrLines = 0;
             if (!monitorScan) AppendSection(Lang.T("section.yara"));
+
+            // On Windows, yara64.exe expects the --scan-list file to be encoded in
+            // UTF-16 LE (Unicode without BOM) and writes match results to stdout
+            // in UTF-8. Re-encode our temporary file list to UTF-16 LE.
+            //
+            // Additionally, yara64.exe opens files via the ANSI code page (fopen), so
+            // we filter out paths that cannot round-trip through the default ANSI encoding,
+            // otherwise they cannot be opened anyway and would cause unreadable error logs.
+            string scanList = yaraListPath;
+            int unsupported = 0;
+            try
+            {
+                var unicodeWithoutBom = new UnicodeEncoding(false, false);
+                var raw = File.ReadAllLines(yaraListPath);
+                var safe = AnsiSafePaths(new List<string>(raw), Encoding.Default, out unsupported);
+                if (safe.Count == 0)
+                {
+                    // nothing yara can even open — don't spawn it just to fail
+                    AppendLog(string.Format(Lang.T("log.yaraPathsSkipped"), unsupported), Theme.Warn, "WARN", true);
+                    FinishScan(clamCode);
+                    return;
+                }
+                string unicodeList = Path.Combine(Path.GetTempPath(), "av-yara-" + Guid.NewGuid().ToString("N") + ".txt");
+                File.WriteAllLines(unicodeList, safe.ToArray(), unicodeWithoutBom);
+                batchListPaths.Add(unicodeList); // cleaned with the other scan lists
+                scanList = unicodeList;
+                if (unsupported > 0)
+                    AppendLog(string.Format(Lang.T("log.yaraPathsSkipped"), unsupported), Theme.Warn, "WARN", true);
+            }
+            catch { } // fall back to the shared UTF-8 list — worst case is the old behavior
+
             AppendLog(Lang.T("log.yaraScanning"), monitorScan ? Theme.Muted : Theme.Text, "SCAN", monitorScan);
             statusLabel.Text = Lang.T("status.yaraScanning");
 
@@ -229,8 +278,9 @@ namespace AVUI
                 ns++;
                 args.Append(" r").Append(ns).Append(":").Append(Quote(rf));
             }
-            args.Append(" --scan-list ").Append(Quote(yaraListPath));
+            args.Append(" --scan-list ").Append(Quote(scanList));
             yaraRunning = true;
+            // yara64 outputs in UTF-8 (handled by standard StartProcess overload)
             StartProcess(YaraExe, args.ToString(), OnYaraLine, OnYaraExit);
         }
 
@@ -251,6 +301,8 @@ namespace AVUI
             return true;
         }
 
+        int yaraErrLines; // non-match output lines this phase (warnings, unreadable files)
+
         void OnYaraLine(string line)
         {
             if (string.IsNullOrEmpty(line)) return;
@@ -261,13 +313,18 @@ namespace AVUI
                 if (!yaraMatches.ContainsKey(path)) yaraMatches[path] = rule;
             }
             else
-                AppendLog(line + "\r\n", Theme.Warn, "WARN", true); // rule warnings / scan errors
+            {
+                // rule warnings / unreadable files: show a few, then just count —
+                // a folder of locked files must not flood the log with error lines
+                yaraErrLines++;
+                if (yaraErrLines <= 3) AppendLog(line + "\r\n", Theme.Warn, "WARN", true);
+            }
         }
 
         void OnYaraExit(int code)
         {
             yaraRunning = false;
-            int extra = 0;
+            int extra = 0, pending = 0;
             foreach (KeyValuePair<string, string> kv in yaraMatches)
             {
                 string path = kv.Key;
@@ -276,27 +333,44 @@ namespace AVUI
                 foreach (string[] ff in foundFiles)
                     if (string.Equals(ff[0], path, StringComparison.OrdinalIgnoreCase)) { known = true; break; }
                 if (known) continue; // ClamAV already reported this file
+                bool isMemDump = memDumpDir != null && IsUnder(path, memDumpDir);
+                string hash = null;
+                if (VtActive && !isMemDump)
+                {
+                    try { hash = Sha256OfQuarFile(path); } catch { }
+                }
+                // One community-rule match is a suspicion, not a verdict — Forge
+                // rules do hit legitimate packers/installers. When VirusTotal can
+                // arbitrate, hold the file untouched until the hash verdict arrives
+                // (ResolvePendingYara). RAM dumps can't wait: their temp files are
+                // deleted right after the scan, so they take the immediate path.
+                if (hash != null && VtQueueFile(path, hash))
+                {
+                    pending++;
+                    vtPendingYara[path] = threat;
+                    AppendLog(string.Format(Lang.T("log.yaraSuspiciousPending"), path, threat), Theme.Warn, "WARN", false);
+                    continue;
+                }
                 extra++;
                 foundCount++;
                 AppendLog(path + ": " + threat + " FOUND\r\n", Theme.Danger, "INFECTED", false);
-                // suspicious-but-unknown to the signature DB — exactly what the
-                // VirusTotal hash check is for (hash computed before any quarantine move)
-                string hash = null;
-                try { hash = Sha256OfQuarFile(path); } catch { }
-                if (hash != null) VtQueueFile(path, hash);
                 if (chkQuarantine.Checked)
                 {
                     if (QuarantineFile(path, threat, currentScanDesc)) movedCount++;
                 }
                 foundFiles.Add(new string[] { path, threat }); // threat dialog skips files already moved
             }
-            if (extra == 0)
+            if (yaraErrLines > 3)
+                AppendLog(string.Format(Lang.T("log.yaraMoreErrors"), yaraErrLines - 3), Theme.Warn, "WARN", true);
+            if (extra == 0 && pending == 0)
             {
                 if (code != 0) AppendLog(string.Format(Lang.T("log.yaraExitCode"), code), Theme.Warn, "WARN", true);
                 AppendLog(Lang.T("log.yaraClean"), monitorScan ? Theme.Muted : Theme.Good, "OK", monitorScan);
             }
-            else
+            else if (extra > 0)
                 AppendLog(string.Format(Lang.T("log.yaraFound"), extra), Theme.Danger, "INFECTED", false);
+            if (pending > 0)
+                AppendLog(string.Format(Lang.T("log.yaraPendingCount"), pending), Theme.Warn, "WARN", false);
             int final = yaraClamCode;
             if (extra > 0 && final == 0) final = 1; // YARA findings surface the threat flow
             FinishScan(final);

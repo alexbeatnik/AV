@@ -474,6 +474,7 @@ namespace AVUI
             A("stat.files", "Files scanned", "Файлів перевірено");
             A("stat.threats", "Threats", "Загроз");
             A("stat.quarantined", "Quarantined", "У карантині");
+            A("stat.database", "Database", "База");
             A("stat.signatures", "Signatures", "Сигнатур");
             A("stat.yara", "YARA rules", "YARA-правила");
             A("stat.virustotal", "VirusTotal", "VirusTotal");
@@ -481,8 +482,15 @@ namespace AVUI
             A("sval.vtNoKey", "No API key", "Немає ключа");
 
             // YARA engine
-            A("btn.engines", "ENGINES: YARA / VIRUSTOTAL…", "РУШІЇ: YARA / VIRUSTOTAL…");
-            A("engines.title", "Detection engines — YARA & VirusTotal", "Рушії виявлення — YARA і VirusTotal");
+            A("btn.engines", "DETECTION ENGINES…", "РУШІЇ ВИЯВЛЕННЯ…");
+            A("engines.title", "Detection engines — ClamAV, YARA & VirusTotal", "Рушії виявлення — ClamAV, YARA і VirusTotal");
+            A("engines.clamavReady", "Ready: ClamAV {0}, database from {1}", "Готово: ClamAV {0}, база від {1}");
+            A("engines.clamavNoDb", "Database not downloaded yet — press UPDATE DATABASE on the dashboard",
+                "Базу ще не завантажено — натисни ОНОВИТИ БАЗУ на головній сторінці");
+            A("engines.clamavMissing", "ClamAV not found — it is downloaded during the first database update",
+                "ClamAV не знайдено — він завантажиться під час першого оновлення бази");
+            A("engines.clamavCore", "The core signature engine — always on; updates run from the dashboard.",
+                "Основний сигнатурний рушій — завжди увімкнений; оновлення — з головної сторінки.");
             A("settings.yaraEnabled", "Use YARA rules — a second detection engine", "Використовувати YARA-правила — другий рушій виявлення");
             A("engines.yaraStatusReady", "Ready: {0} rule file(s), rules from {1}", "Готово: файлів правил: {0}, правила від {1}");
             A("engines.yaraStatusDownloading", "Downloading the engine and rules…", "Завантажую рушій і правила…");
@@ -512,6 +520,24 @@ namespace AVUI
             // VirusTotal
             A("engines.vtKeyLabel", "API key (free account at virustotal.com):", "API-ключ (безкоштовний акаунт на virustotal.com):");
             A("engines.vtGetKey", "Get a key", "Отримати ключ");
+            A("engines.vtStatusOn", "Ready: hash checks enabled", "Готово: перевірка за хешем увімкнена");
+            A("engines.vtStatusNoKey", "No API key — VirusTotal checks are off", "Немає API-ключа — перевірки VirusTotal не працюють");
+            A("btn.testKey", "TEST KEY", "ПЕРЕВІРИТИ КЛЮЧ");
+            A("engines.vtKeyEmpty", "Enter a key first.", "Спершу введи ключ.");
+            A("engines.vtTesting", "Checking the key…", "Перевіряю ключ…");
+            A("engines.vtKeyOk", "✓ The key works", "✓ Ключ працює");
+            A("engines.vtKeyBad", "Key rejected — copy it again from virustotal.com", "Ключ відхилено — скопіюй його ще раз із virustotal.com");
+            A("engines.vtKeyRate", "The key works, but the minute quota is used up — try again shortly",
+                "Ключ працює, але хвилинну квоту вичерпано — спробуй трохи пізніше");
+            A("engines.vtKeyNet", "No answer from VirusTotal: {0}", "Немає відповіді від VirusTotal: {0}");
+            A("btn.getYara", "DOWNLOAD YARA RULES", "ЗАВАНТАЖИТИ YARA-ПРАВИЛА");
+            A("btn.enterVtKey", "ENTER VIRUSTOTAL KEY…", "ВВЕСТИ КЛЮЧ VIRUSTOTAL…");
+            A("vtkey.title", "VirusTotal API key", "API-ключ VirusTotal");
+            A("vtkey.intro", "VirusTotal checks suspicious files by SHA256 hash against 70+ antivirus engines. "
+                + "It needs a free API key — one minute to get, no payment details.",
+                "VirusTotal перевіряє підозрілі файли за SHA256-хешем у 70+ антивірусних рушіях. "
+                + "Потрібен безкоштовний API-ключ — забирає хвилину, без платіжних даних.");
+            A("vtkey.getFree", "Get a free key at virustotal.com →", "Отримати безкоштовний ключ на virustotal.com →");
             A("settings.vtCheck", "Check suspicious files by SHA256 hash on VirusTotal", "Перевіряти підозрілі файли за SHA256-хешем на VirusTotal");
             A("settings.vtUpload", "Upload files unknown to VirusTotal for analysis", "Завантажувати невідомі VirusTotal файли на аналіз");
             A("engines.vtHint", "Hash checks send only the SHA256 of suspicious files (YARA detections, new files "
@@ -535,6 +561,36 @@ namespace AVUI
             A("log.vtRateLimited", "VirusTotal rate limit reached — pausing checks for a while.\r\n", "Досягнуто ліміт запитів VirusTotal — перевірки призупинено на деякий час.\r\n");
             A("log.vtBadKey", "VirusTotal rejected the API key — check it in Settings → Engines.\r\n", "VirusTotal відхилив API-ключ — перевір його в Налаштування → Рушії.\r\n");
             A("log.vtError", "VirusTotal error: {0}\r\n", "Помилка VirusTotal: {0}\r\n");
+
+            // YARA suspicion held for the VirusTotal verdict (trust tiers)
+            A("log.yaraSuspiciousPending", "{0}: {1} — suspicious, awaiting the VirusTotal verdict before acting…\r\n",
+                "{0}: {1} — підозріло, чекаю на вердикт VirusTotal перед діями…\r\n");
+            A("log.yaraPendingCount", "YARA: {0} suspicious file(s) sent for a VirusTotal check — nothing is touched until the verdict arrives.\r\n",
+                "YARA: підозрілих файлів надіслано на перевірку VirusTotal: {0} — до вердикту нічого не чіпаю.\r\n");
+            A("log.donePendingVt", "Scan finished; {0} suspicious file(s) are awaiting the VirusTotal verdict — results will appear here.\r\n",
+                "Сканування завершено; файлів в очікуванні вердикту VirusTotal: {0} — результати з'являться тут.\r\n");
+            A("tray.donePendingVt", "Scan finished — {0} suspicious file(s) awaiting the VirusTotal verdict",
+                "Сканування завершено — файлів чекають на вердикт VirusTotal: {0}");
+            A("log.vtYaraLikelyFp", "{0}: clean on VirusTotal (0/{1}) — the {2} match looks like a false positive; the file was left in place.\r\n",
+                "{0}: чистий на VirusTotal (0/{1}) — збіг {2} схожий на хибне спрацювання; файл залишено на місці.\r\n");
+            A("log.vtYaraConfirmed", "VirusTotal confirms the YARA suspicion: {0} of {1} engines flag {2}\r\n",
+                "VirusTotal підтверджує підозру YARA: {0} із {1} рушіїв вважають загрозою {2}\r\n");
+            A("log.vtYaraUnknown", "VirusTotal has never seen {0} ({1}) — still suspicious.\r\n",
+                "VirusTotal ще не бачив {0} ({1}) — файл лишається підозрілим.\r\n");
+            A("log.vtYaraInconclusive", "VirusTotal: only {0} of {1} engines flag {2} — inconclusive.\r\n",
+                "VirusTotal: лише {0} із {1} рушіїв мають підозру щодо {2} — вердикт неоднозначний.\r\n");
+            A("log.vtYaraUnavailable", "No VirusTotal verdict for {0} ({1}) — handling it as a regular detection.\r\n",
+                "Немає вердикту VirusTotal для {0} ({1}) — обробляю як звичайну знахідку.\r\n");
+            A("log.vtYaraQuarantined", "{0} moved to quarantine (it can be restored from the Quarantine page).\r\n",
+                "{0} переміщено в карантин (можна відновити на сторінці «Карантин»).\r\n");
+            A("log.vtPendingGone", "{0} disappeared before the VirusTotal verdict arrived — nothing to do.\r\n",
+                "{0} зник до отримання вердикту VirusTotal — дій не потрібно.\r\n");
+            A("log.phaseTiming", "Engine timing — ClamAV: {0}, YARA: {1}\r\n",
+                "Тривалість фаз — ClamAV: {0}, YARA: {1}\r\n");
+            A("log.yaraPathsSkipped", "YARA: {0} file(s) skipped — their paths contain characters the YARA engine cannot open.\r\n",
+                "YARA: пропущено файлів: {0} — у їхніх шляхах є символи, які рушій YARA не може відкрити.\r\n");
+            A("log.yaraMoreErrors", "YARA: …and {0} more warning/error line(s) hidden.\r\n",
+                "YARA: …і ще рядків попереджень/помилок: {0} (приховано).\r\n");
         }
     }
 }

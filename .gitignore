@@ -13,6 +13,8 @@ AVUI.Tests.exe
 # Local user settings
 settings.ini
 scans.log
+# VirusTotal API key — a secret, lives in its own file so installs can't wipe it
+vt.key
 
 # Quarantine (infected files)
 quarantine/

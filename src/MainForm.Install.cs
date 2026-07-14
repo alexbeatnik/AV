@@ -114,11 +114,8 @@ namespace AVUI
                     string s = Path.Combine(srcDir, sub);
                     if (Directory.Exists(s)) CopyDir(s, Path.Combine(dst, sub));
                 }
-                foreach (string fn in new string[] { "settings.ini", "scans.log" })
-                {
-                    string s = Path.Combine(srcDir, fn);
-                    if (File.Exists(s)) File.Copy(s, Path.Combine(dst, fn), true);
-                }
+                foreach (string fn in new string[] { "settings.ini", "scans.log", "vt.key" })
+                    CarryOverFile(Path.Combine(srcDir, fn), Path.Combine(dst, fn));
             }
 
             // shortcuts: Start Menu and Desktop (both per-user)
@@ -146,6 +143,25 @@ namespace AVUI
             using (var k = Registry.CurrentUser.OpenSubKey(RunKeyPath, true))
                 if (k != null && k.GetValue(RunValueName) != null)
                     k.SetValue(RunValueName, "\"" + dstExe + "\" --tray");
+        }
+
+        // Self-updates swap the exe but the Apps-list entry kept the version from
+        // install time — refresh it on startup so Settings → Apps shows what's
+        // actually running.
+        static void SyncUninstallVersion()
+        {
+            if (!IsInstalled) return;
+            try
+            {
+                using (var k = Registry.CurrentUser.OpenSubKey(
+                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\AV", true))
+                {
+                    if (k == null) return; // installed manually without the registry entry
+                    if (!string.Equals(k.GetValue("DisplayVersion") as string, AppVersion))
+                        k.SetValue("DisplayVersion", AppVersion);
+                }
+            }
+            catch { }
         }
 
         static void RunUninstallMode()
@@ -184,6 +200,15 @@ namespace AVUI
         static void TryDelete(string path)
         {
             try { if (File.Exists(path)) File.Delete(path); } catch { }
+        }
+
+        // Carries a data file into the install dir only when it isn't there yet.
+        // Never overwrites: a freshly downloaded exe writes a default settings.ini
+        // on its very first run, and blindly copying that over an existing install
+        // used to wipe the user's real settings (VT key, watch folders, stats).
+        internal static void CarryOverFile(string src, string dst)
+        {
+            if (File.Exists(src) && !File.Exists(dst)) File.Copy(src, dst);
         }
 
         // ---------- C:\Windows\Temp access fix ----------
@@ -237,11 +262,13 @@ namespace AVUI
             using (var p = Process.Start(psi)) p.WaitForExit(30000);
         }
 
+        // Same never-overwrite rule as CarryOverFile: existing files at the
+        // destination (a fresher database, the installed quarantine) win.
         static void CopyDir(string src, string dst)
         {
             Directory.CreateDirectory(dst);
             foreach (string f in Directory.GetFiles(src))
-                File.Copy(f, Path.Combine(dst, Path.GetFileName(f)), true);
+                CarryOverFile(f, Path.Combine(dst, Path.GetFileName(f)));
             foreach (string d in Directory.GetDirectories(src))
                 CopyDir(d, Path.Combine(dst, Path.GetFileName(d)));
         }

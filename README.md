@@ -19,6 +19,15 @@ Based on [ClamAV-WindowsUI](https://github.com/alexbeatnik/ClamAV-WindowsUI).
 The interface is available in **English** (default) and **Ukrainian**,
 switchable anytime from Settings.
 
+<p align="center">
+  <img src="screenshots/dashboard.png" width="400" alt="Dashboard" />
+  <img src="screenshots/logs.png" width="400" alt="Logs" />
+</p>
+<p align="center">
+  <img src="screenshots/quarantine.png" width="400" alt="Quarantine" />
+  <img src="screenshots/settings.png" width="400" alt="Settings" />
+</p>
+
 
 ## How the three engines work together
 
@@ -28,17 +37,32 @@ in phases over the exact same file list:
 1. **ClamAV** scans the files (via the fast `clamd` daemon with parallel
    workers, falling back to `clamscan` automatically).
 2. **YARA** re-checks the same list — including the dumped process memory —
-   with `yara64 --scan-list`. Matches are reported as `YARA:<rule>` threats and
-   go through the same threat dialog / auto-quarantine pipeline as ClamAV
-   detections.
-3. **VirusTotal**: files flagged only by YARA (i.e. unknown to the signature
-   database) and new files caught by the folder monitor are queued for a
-   SHA256 hash lookup (throttled to the free-tier 4 requests/minute). If 3 or
-   more engines flag a file, it's treated as a threat — alert, threat dialog,
-   or straight to quarantine when auto-quarantine is on. Files unknown to
+   with `yara64 --scan-list`. A ClamAV detection is a *verdict*; a single
+   community-rule match is only a *suspicion* (YARA Forge rules do hit
+   legitimate packers and installers), so the two are trusted differently —
+   see the tiers below.
+3. **VirusTotal** arbitrates the suspicions: files flagged only by YARA and
+   new files caught by the folder monitor are queued for a SHA256 hash lookup
+   (throttled to the free-tier 4 requests/minute). Files unknown to
    VirusTotal are uploaded for analysis **only** if the upload toggle is
    explicitly enabled (files uploaded to VT become visible to researchers
    worldwide — the default is hash-only, nothing leaves the PC).
+
+### Trust tiers — how conflicting results are resolved
+
+| Signal | Treated as | What happens |
+|--------|-----------|--------------|
+| ClamAV signature match | threat | threat dialog / auto-quarantine, immediately |
+| YARA match, VirusTotal confirms (≥ 3 engines) | threat | threat dialog / auto-quarantine, named `YARA:<rule> + VirusTotal x/y` |
+| YARA match, VirusTotal clean (0 flags from 20+ engines) | likely false positive | file left in place, noted in the log |
+| YARA match, VT inconclusive / unknown / unreachable | suspicion | your call via the threat dialog (or quietly quarantined when auto-quarantine is on — reversible from the Quarantine page) |
+| YARA match, no VT key configured | suspicion | classic flow: threat dialog / auto-quarantine |
+
+While a file awaits its VirusTotal verdict nothing touches it, the scan
+summary says so, and the verdict lands in the log (and tray) usually within
+seconds. YARA matches on dumped process memory skip the waiting step — the
+dump files are deleted when the scan ends, so they go straight to the threat
+flow.
 
 The YARA engine (`yara64.exe`, from the official
 [VirusTotal/yara](https://github.com/VirusTotal/yara) releases) and the YARA

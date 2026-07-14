@@ -1,5 +1,8 @@
-// Tests for the YARA output parser and the VirusTotal response parser.
+// Tests for the YARA output parser, the ANSI scan-list filter, and the
+// VirusTotal response parser.
 using System;
+using System.Collections.Generic;
+using System.Text;
 using AVUI;
 
 namespace AVUI.Tests
@@ -87,6 +90,92 @@ namespace AVUI.Tests
         {
             int mal, susp, total;
             Assert.False(MainForm.VtParseStats("{\"last_analysis_stats\":{\"malicious\":4", out mal, out susp, out total), "no closing brace");
+        }
+    }
+
+    // yara64 opens paths through the ANSI code page, so the scan list is
+    // re-encoded and paths the code page cannot represent are dropped.
+    public static class AnsiSafePathsTests
+    {
+        static readonly Encoding Cp1251 = Encoding.GetEncoding(1251); // Cyrillic ANSI
+
+        public static void TestAsciiPathsSurvive()
+        {
+            int skipped;
+            var res = MainForm.AnsiSafePaths(
+                new List<string> { @"C:\Users\x\file.exe", @"D:\a b\c.dll" }, Cp1251, out skipped);
+            Assert.Equal(2, res.Count, "kept");
+            Assert.Equal(0, skipped, "none skipped");
+        }
+
+        public static void TestCyrillicSurvivesItsOwnCodePage()
+        {
+            int skipped;
+            var res = MainForm.AnsiSafePaths(
+                new List<string> { @"C:\Users\Олексій\Завантаження\файл.exe" }, Cp1251, out skipped);
+            Assert.Equal(1, res.Count, "kept");
+            Assert.Equal(@"C:\Users\Олексій\Завантаження\файл.exe", res[0], "unchanged");
+        }
+
+        public static void TestUnrepresentablePathIsSkippedAndCounted()
+        {
+            int skipped;
+            var res = MainForm.AnsiSafePaths(
+                new List<string> { @"C:\ok.exe", "C:\\snow☃man.exe", "C:\\emoji\U0001F600.dll" },
+                Cp1251, out skipped);
+            Assert.Equal(1, res.Count, "only the ASCII path kept");
+            Assert.Equal(2, skipped, "two skipped");
+        }
+
+        public static void TestEmptyListIsFine()
+        {
+            int skipped;
+            var res = MainForm.AnsiSafePaths(new List<string>(), Cp1251, out skipped);
+            Assert.Equal(0, res.Count, "empty");
+            Assert.Equal(0, skipped, "none skipped");
+        }
+    }
+
+    // Verdict tiers for files flagged only by a YARA rule (held back until the
+    // VirusTotal answer decides quarantine / release / user decision).
+    public static class VtClassifyTests
+    {
+        public static void TestThresholdConfirms()
+        {
+            Assert.Equal(VtVerdict.Confirmed, MainForm.VtClassify(200, 3, 0, 70), "3 engines");
+            Assert.Equal(VtVerdict.Confirmed, MainForm.VtClassify(200, 45, 1, 70), "many engines");
+        }
+
+        public static void TestCleanWithEnoughVerdictsIsLikelyClean()
+        {
+            Assert.Equal(VtVerdict.LikelyClean, MainForm.VtClassify(200, 0, 0, 72), "0/72");
+            Assert.Equal(VtVerdict.LikelyClean, MainForm.VtClassify(200, 0, 0, 20), "exactly at the minimum");
+        }
+
+        public static void TestCleanWithTooFewVerdictsIsInconclusive()
+        {
+            // a 200 whose stats failed to parse (all zeros) must NOT clear the file
+            Assert.Equal(VtVerdict.Inconclusive, MainForm.VtClassify(200, 0, 0, 0), "unparsed stats");
+            Assert.Equal(VtVerdict.Inconclusive, MainForm.VtClassify(200, 0, 0, 19), "below the minimum");
+        }
+
+        public static void TestFewFlagsAreInconclusive()
+        {
+            Assert.Equal(VtVerdict.Inconclusive, MainForm.VtClassify(200, 1, 0, 70), "1 engine");
+            Assert.Equal(VtVerdict.Inconclusive, MainForm.VtClassify(200, 2, 5, 70), "2 engines + suspicious");
+            Assert.Equal(VtVerdict.Inconclusive, MainForm.VtClassify(200, 0, 4, 70), "suspicious only");
+        }
+
+        public static void TestNotFoundIsUnknown()
+        {
+            Assert.Equal(VtVerdict.Unknown, MainForm.VtClassify(404, 0, 0, 0), "404");
+        }
+
+        public static void TestErrorsAreUnavailable()
+        {
+            Assert.Equal(VtVerdict.Unavailable, MainForm.VtClassify(0, 0, 0, 0), "network error");
+            Assert.Equal(VtVerdict.Unavailable, MainForm.VtClassify(401, 0, 0, 0), "bad key");
+            Assert.Equal(VtVerdict.Unavailable, MainForm.VtClassify(500, 0, 0, 0), "server error");
         }
     }
 }

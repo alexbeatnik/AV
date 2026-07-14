@@ -128,21 +128,22 @@ namespace AVUI
         void UpdateStatsUi()
         {
             int q = QuarantineCount();
+            // scan statistics only — everything engine-related (ClamAV version,
+            // database, YARA, VirusTotal) lives together in the engines strip below
             statStrip.Captions = new string[]
             {
-                Lang.T("stat.clamav"), Lang.T("stat.lastScan"), Lang.T("stat.scans"),
+                Lang.T("stat.lastScan"), Lang.T("stat.scans"),
                 Lang.T("stat.files"), Lang.T("stat.threats"), Lang.T("stat.quarantined")
             };
             statStrip.Values = new string[]
             {
-                clamVersion,
                 lastScanInfo.Length == 0 ? Lang.T("stats.neverScanned") : lastScanInfo,
                 totalScans.ToString(), totalFilesScanned.ToString(),
                 totalFound.ToString(), q.ToString()
             };
             statStrip.ValueColors = new Color[]
             {
-                Color.Empty, Color.Empty, Color.Empty, Color.Empty,
+                Color.Empty, Color.Empty, Color.Empty,
                 totalFound > 0 ? Theme.Danger : Color.Empty,
                 q > 0 ? Theme.Warn : Color.Empty
             };
@@ -157,6 +158,12 @@ namespace AVUI
                 dbStrip.ValueColors = colors;
                 dbStrip.Invalidate();
             }
+            // Engine call-to-action buttons: shown only while something actually
+            // needs the user (and never nag about an engine they switched off)
+            if (btnGetYara != null)
+                btnGetYara.Visible = yaraEnabled && !YaraReady() && !yaraSetupRunning;
+            if (btnEnterVtKey != null)
+                btnEnterVtKey.Visible = vtCheckEnabled && vtApiKey.Length == 0;
         }
 
         // Moves a file into quarantine manually (without clamscan --move) in the

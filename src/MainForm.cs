@@ -106,6 +106,7 @@ namespace AVUI
 
         // UI
         ModernButton btnStop, btnUpdate, btnWatchDirs, btnScanLog, btnClearLog;
+        ModernButton btnGetYara, btnEnterVtKey; // engine call-to-action buttons on the dashboard strip
         ModernButton dashQuick, dashStop, dashScanFile, dashScanFolder, dashScanAll, dashScanRam, btnInstall, btnLangEn, btnLangUk, btnFixWinTemp, btnAbout, btnEngines;
         ModernButton btnPerfLow, btnPerfNormal, btnPerfHigh;
         Label perfLabel, perfHint;
@@ -210,13 +211,20 @@ namespace AVUI
 
         void StartProcess(string exe, string args, Action<string> onLine, Action<int> onExit)
         {
+            StartProcess(exe, args, onLine, onExit, Encoding.UTF8);
+        }
+
+        // enc — how the child's output is decoded: ClamAV talks UTF-8, but yara64
+        // is an ANSI program (paths go through the system code page, see RunYaraPhase)
+        void StartProcess(string exe, string args, Action<string> onLine, Action<int> onExit, Encoding enc)
+        {
             var psi = new ProcessStartInfo(exe, args);
             psi.UseShellExecute = false;
             psi.CreateNoWindow = true;
             psi.RedirectStandardOutput = true;
             psi.RedirectStandardError = true;
-            psi.StandardOutputEncoding = Encoding.UTF8;
-            psi.StandardErrorEncoding = Encoding.UTF8;
+            psi.StandardOutputEncoding = enc;
+            psi.StandardErrorEncoding = enc;
             psi.WorkingDirectory = clamDir;
 
             var p = new Process();

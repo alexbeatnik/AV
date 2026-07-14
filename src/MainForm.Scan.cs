@@ -166,7 +166,8 @@ namespace AVUI
             }
             if (yaraRunning)
             {
-                AppendLog(string.Format(Lang.T("log.hbYara"), DateTime.Now, elapsed), Theme.Muted, "SCAN", false);
+                string yaraElapsed = yaraPhaseStart != DateTime.MinValue ? FormatSpan(DateTime.Now - yaraPhaseStart) : elapsed;
+                AppendLog(string.Format(Lang.T("log.hbYara"), DateTime.Now, yaraElapsed), Theme.Muted, "SCAN", false);
                 return;
             }
             bool stalled = (DateTime.Now - lastScanOutput).TotalSeconds >= 9; // no new output
@@ -395,6 +396,7 @@ namespace AVUI
             movedCount = 0;
             foundFiles.Clear();
             scanStart = DateTime.Now;
+            yaraPhaseStart = DateTime.MinValue;
             loggedTotal = false;
             lastEta = "";
             rateWinTime = DateTime.MinValue;
@@ -1095,6 +1097,11 @@ namespace AVUI
                     scannedCount, FormatSpan(DateTime.Now - scanStart), foundCount),
                     foundCount > 0 ? Theme.Danger : Theme.Text,
                     foundCount > 0 ? "INFECTED" : "SCAN", false);
+                // what each engine cost: the ClamAV part (listing + signatures) vs the YARA pass
+                if (yaraPhaseStart > scanStart)
+                    AppendLog(string.Format(Lang.T("log.phaseTiming"),
+                        FormatSpan(yaraPhaseStart - scanStart), FormatSpan(DateTime.Now - yaraPhaseStart)),
+                        Theme.Muted, null, false);
                 if (scannedCount < initialFilesToScan)
                 {
                     int skipped = initialFilesToScan - scannedCount;
@@ -1118,7 +1125,14 @@ namespace AVUI
             {
                 statusLabel.Text = string.Format(Lang.T("status.doneClean"), scannedCount);
                 RefreshDbStatus(); // returns to the green "Protected" state
-                if (wasMonitor)
+                if (vtPendingYara.Count > 0)
+                {
+                    // suspicious files are still awaiting the VirusTotal verdict —
+                    // don't announce a clean result that may flip in a minute
+                    AppendLog(string.Format(Lang.T("log.donePendingVt"), vtPendingYara.Count), Theme.Warn, "WARN", false);
+                    Notify(5000, string.Format(Lang.T("tray.donePendingVt"), vtPendingYara.Count), ToolTipIcon.Info);
+                }
+                else if (wasMonitor)
                 {
                     AppendLog(Lang.T("log.newFilesClean"), Theme.Good);
                     Notify(4000, string.Format(Lang.T("tray.newFilesClean"), scannedCount), ToolTipIcon.Info);
