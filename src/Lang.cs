@@ -586,6 +586,10 @@ namespace AVUI
                 "{0} зник до отримання вердикту VirusTotal — дій не потрібно.\r\n");
             A("log.phaseTiming", "Engine timing — ClamAV: {0}, YARA: {1}\r\n",
                 "Тривалість фаз — ClamAV: {0}, YARA: {1}\r\n");
+            A("log.yaraPathsSkipped", "YARA: {0} file(s) skipped — their paths contain characters the YARA engine cannot open.\r\n",
+                "YARA: пропущено файлів: {0} — у їхніх шляхах є символи, які рушій YARA не може відкрити.\r\n");
+            A("log.yaraMoreErrors", "YARA: …and {0} more warning/error line(s) hidden.\r\n",
+                "YARA: …і ще рядків попереджень/помилок: {0} (приховано).\r\n");
         }
     }
 }

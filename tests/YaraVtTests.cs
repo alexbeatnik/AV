@@ -1,5 +1,8 @@
-// Tests for the YARA output parser and the VirusTotal response parser.
+// Tests for the YARA output parser, the ANSI scan-list filter, and the
+// VirusTotal response parser.
 using System;
+using System.Collections.Generic;
+using System.Text;
 using AVUI;
 
 namespace AVUI.Tests
@@ -87,6 +90,49 @@ namespace AVUI.Tests
         {
             int mal, susp, total;
             Assert.False(MainForm.VtParseStats("{\"last_analysis_stats\":{\"malicious\":4", out mal, out susp, out total), "no closing brace");
+        }
+    }
+
+    // yara64 opens paths through the ANSI code page, so the scan list is
+    // re-encoded and paths the code page cannot represent are dropped.
+    public static class AnsiSafePathsTests
+    {
+        static readonly Encoding Cp1251 = Encoding.GetEncoding(1251); // Cyrillic ANSI
+
+        public static void TestAsciiPathsSurvive()
+        {
+            int skipped;
+            var res = MainForm.AnsiSafePaths(
+                new List<string> { @"C:\Users\x\file.exe", @"D:\a b\c.dll" }, Cp1251, out skipped);
+            Assert.Equal(2, res.Count, "kept");
+            Assert.Equal(0, skipped, "none skipped");
+        }
+
+        public static void TestCyrillicSurvivesItsOwnCodePage()
+        {
+            int skipped;
+            var res = MainForm.AnsiSafePaths(
+                new List<string> { @"C:\Users\Олексій\Завантаження\файл.exe" }, Cp1251, out skipped);
+            Assert.Equal(1, res.Count, "kept");
+            Assert.Equal(@"C:\Users\Олексій\Завантаження\файл.exe", res[0], "unchanged");
+        }
+
+        public static void TestUnrepresentablePathIsSkippedAndCounted()
+        {
+            int skipped;
+            var res = MainForm.AnsiSafePaths(
+                new List<string> { @"C:\ok.exe", "C:\\snow☃man.exe", "C:\\emoji\U0001F600.dll" },
+                Cp1251, out skipped);
+            Assert.Equal(1, res.Count, "only the ASCII path kept");
+            Assert.Equal(2, skipped, "two skipped");
+        }
+
+        public static void TestEmptyListIsFine()
+        {
+            int skipped;
+            var res = MainForm.AnsiSafePaths(new List<string>(), Cp1251, out skipped);
+            Assert.Equal(0, res.Count, "empty");
+            Assert.Equal(0, skipped, "none skipped");
         }
     }
 

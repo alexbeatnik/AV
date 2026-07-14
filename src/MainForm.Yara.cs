@@ -211,12 +211,56 @@ namespace AVUI
             RunYaraPhase(exitCode);
         }
 
+        // Filters out paths the given ANSI code page cannot represent (they'd be
+        // unopenable for yara64 anyway) — the survivors round-trip losslessly, so
+        // yara's output maps back to the exact original path strings.
+        internal static List<string> AnsiSafePaths(List<string> paths, Encoding ansi, out int skipped)
+        {
+            var res = new List<string>(paths.Count);
+            skipped = 0;
+            foreach (string p in paths)
+            {
+                if (ansi.GetString(ansi.GetBytes(p)) == p) res.Add(p);
+                else skipped++;
+            }
+            return res;
+        }
+
         void RunYaraPhase(int clamCode)
         {
             yaraClamCode = clamCode;
             yaraPhaseStart = DateTime.Now;
             yaraMatches.Clear();
+            yaraErrLines = 0;
             if (!monitorScan) AppendSection(Lang.T("section.yara"));
+
+            // yara64 opens files via the ANSI code page (plain fopen): fed the UTF-8
+            // list ClamAV uses, it fails on every non-ASCII path ("error scanning
+            // ????…"), and a match on such a path could never be mapped back to the
+            // real file. Re-encode the list in the system ANSI code page, dropping
+            // the (rare) paths it cannot represent.
+            string scanList = yaraListPath;
+            int unsupported = 0;
+            try
+            {
+                var ansi = Encoding.Default;
+                var safe = AnsiSafePaths(new List<string>(File.ReadAllLines(yaraListPath)), ansi, out unsupported);
+                if (safe.Count == 0)
+                {
+                    // nothing yara can even open — don't spawn it just to fail
+                    AppendLog(string.Format(Lang.T("log.yaraPathsSkipped"), unsupported), Theme.Warn, "WARN", true);
+                    FinishScan(clamCode);
+                    return;
+                }
+                string ansiList = Path.Combine(Path.GetTempPath(), "av-yara-" + Guid.NewGuid().ToString("N") + ".txt");
+                File.WriteAllLines(ansiList, safe.ToArray(), ansi);
+                batchListPaths.Add(ansiList); // cleaned with the other scan lists
+                scanList = ansiList;
+                if (unsupported > 0)
+                    AppendLog(string.Format(Lang.T("log.yaraPathsSkipped"), unsupported), Theme.Warn, "WARN", true);
+            }
+            catch { } // fall back to the shared UTF-8 list — worst case is the old behavior
+
             AppendLog(Lang.T("log.yaraScanning"), monitorScan ? Theme.Muted : Theme.Text, "SCAN", monitorScan);
             statusLabel.Text = Lang.T("status.yaraScanning");
 
@@ -231,9 +275,10 @@ namespace AVUI
                 ns++;
                 args.Append(" r").Append(ns).Append(":").Append(Quote(rf));
             }
-            args.Append(" --scan-list ").Append(Quote(yaraListPath));
+            args.Append(" --scan-list ").Append(Quote(scanList));
             yaraRunning = true;
-            StartProcess(YaraExe, args.ToString(), OnYaraLine, OnYaraExit);
+            // yara's output comes back in the same ANSI code page the list was written in
+            StartProcess(YaraExe, args.ToString(), OnYaraLine, OnYaraExit, Encoding.Default);
         }
 
         // Match lines look like "RuleName C:\path\file"; anything else (compile
@@ -253,6 +298,8 @@ namespace AVUI
             return true;
         }
 
+        int yaraErrLines; // non-match output lines this phase (warnings, unreadable files)
+
         void OnYaraLine(string line)
         {
             if (string.IsNullOrEmpty(line)) return;
@@ -263,7 +310,12 @@ namespace AVUI
                 if (!yaraMatches.ContainsKey(path)) yaraMatches[path] = rule;
             }
             else
-                AppendLog(line + "\r\n", Theme.Warn, "WARN", true); // rule warnings / scan errors
+            {
+                // rule warnings / unreadable files: show a few, then just count —
+                // a folder of locked files must not flood the log with error lines
+                yaraErrLines++;
+                if (yaraErrLines <= 3) AppendLog(line + "\r\n", Theme.Warn, "WARN", true);
+            }
         }
 
         void OnYaraExit(int code)
@@ -302,6 +354,8 @@ namespace AVUI
                 }
                 foundFiles.Add(new string[] { path, threat }); // threat dialog skips files already moved
             }
+            if (yaraErrLines > 3)
+                AppendLog(string.Format(Lang.T("log.yaraMoreErrors"), yaraErrLines - 3), Theme.Warn, "WARN", true);
             if (extra == 0 && pending == 0)
             {
                 if (code != 0) AppendLog(string.Format(Lang.T("log.yaraExitCode"), code), Theme.Warn, "WARN", true);
