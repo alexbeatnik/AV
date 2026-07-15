@@ -407,6 +407,7 @@ namespace AVUI
         {
             scanRunning = true;
             monitorScan = false;
+            vtPhaseRunning = false;    // a new scan takes over the UI from a held-open phase 3
             cancelScanListing = false; // a Stop from a previous scan must not leak into this one
             scannedCount = 0;
             foundCount = 0;
@@ -1152,8 +1153,21 @@ namespace AVUI
                     // tray toast here either: it fires with the actual outcome
                     // once the last verdict arrives (VtNotifyPendingDone)
                     AppendLog(string.Format(Lang.T("log.donePendingVt"), vtPendingYara.Count), Theme.Warn, "WARN", false);
+                    int got = vtResolvedClean + vtResolvedFlagged;
                     statusLabel.Text = PhasePrefix(3)
-                        + string.Format(Lang.T("status.vtPending"), 0, vtPendingYara.Count);
+                        + string.Format(Lang.T("status.vtPending"), got, got + vtPendingYara.Count);
+                    if (!wasMonitor)
+                    {
+                        // for the user the scan is NOT over: phase 3 (the VirusTotal
+                        // verdicts) is still running. Keep the busy hero and drive the
+                        // progress by verdicts received; VtNotifyPendingDone closes
+                        // the scan and shows the completion toast
+                        vtPhaseRunning = true;
+                        SetHero(ShieldState.Busy, Lang.T("hero.vtWaitTitle"), Lang.T("hero.vtWaitSub"));
+                        double f = (double)got / (got + vtPendingYara.Count);
+                        progress.SetFraction(f);
+                        shield.SetProgress(f);
+                    }
                 }
                 else if (wasMonitor)
                 {

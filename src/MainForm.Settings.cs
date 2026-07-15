@@ -166,11 +166,17 @@ namespace AVUI
                 DateTime newest = DbNewestTime();
                 bool stale = DbIsStale(newest, DateTime.Now);
                 btnUpdate.Visible = updateAvailable || stale;
-                if (stale)
-                    SetHero(ShieldState.Warning, Lang.T("hero.dbStale"),
-                        string.Format(Lang.T("hero.dbStaleSub"), DbDateString(newest)));
-                else
-                    SetHero(ShieldState.Ok, Lang.T("hero.protected"), string.Format(Lang.T("hero.dbFrom"), DbDateString(newest)));
+                // a held-open VirusTotal phase owns the hero (busy shield with the
+                // verdict percent) — don't repaint it green from a background path
+                // (daily db check, language switch); VtNotifyPendingDone restores it
+                if (!vtPhaseRunning)
+                {
+                    if (stale)
+                        SetHero(ShieldState.Warning, Lang.T("hero.dbStale"),
+                            string.Format(Lang.T("hero.dbStaleSub"), DbDateString(newest)));
+                    else
+                        SetHero(ShieldState.Ok, Lang.T("hero.protected"), string.Format(Lang.T("hero.dbFrom"), DbDateString(newest)));
+                }
                 SetScanEnabled(!scanRunning && !updateRunning);
             }
             else
