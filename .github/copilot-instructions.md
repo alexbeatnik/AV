@@ -30,6 +30,11 @@ must not be "modernized" in suggestions or review comments:
   to scan executable RAM regions — this is intentional (malware detection),
   best-effort, and runs non-elevated: failing to open a protected process is
   expected and swallowed, not a bug.
+- `src/MainForm.Yara.cs` polls its own child process with
+  `GetProcessIoCounters` (kernel32 P/Invoke) to estimate the YARA phase's
+  progress — yara64 prints nothing per file, so bytes-read is the only
+  signal. The estimate is deliberately capped at 99%; only the process exit
+  completes the phase. Don't suggest replacing it with output parsing.
 
 ## What TO check in review
 
@@ -41,7 +46,9 @@ must not be "modernized" in suggestions or review comments:
   must match between both translations and the call site.
 - **settings.ini keys**: a new key needs a parser line in `LoadSettings()`,
   a writer line in `SaveSettings()` (`src/MainForm.Settings.cs`), and must
-  degrade gracefully when missing from an old settings file.
+  degrade gracefully when missing from an old settings file. Corrupt values
+  must not throw during startup — timestamps go through the range-checked
+  `TryParseTicks`, never a bare `new DateTime(ticks)`.
 - **Threading**: background work must marshal to the UI thread via
   `BeginInvoke` wrapped in `try/catch` (the form may already be closed);
   child `Process` objects set `SynchronizingObject = this`; no UI-thread
