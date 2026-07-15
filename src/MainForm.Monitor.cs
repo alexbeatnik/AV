@@ -225,7 +225,7 @@ namespace AVUI
                 buttons.Height = 48;
                 buttons.Padding = new Padding(8);
                 buttons.BackColor = Theme.Bg;
-                var ok = MakeButton("OK", 90, Theme.Accent, Theme.AccentHot, Ico.Check);
+                var ok = MakeButton(Lang.T("btn.ok"), 90, Theme.Accent, Theme.AccentHot, Ico.Check);
                 ok.DialogResult = DialogResult.OK;
                 var cancel = MakeButton(Lang.T("btn.cancel"), 100, Theme.Card, Theme.Bg, Ico.Close);
                 cancel.DialogResult = DialogResult.Cancel;

@@ -1166,6 +1166,9 @@ namespace AVUI
                 RefreshDbStatus();
             }
             CleanupMemDumps(); // after the (modal) threat dialog, so found dumps stayed listable
+            // VirusTotal verdicts that landed while this scan was running were
+            // parked to keep the scan's state clean — surface them now
+            FlushVtLateThreats();
             // New files may have appeared while the scan was running
             if (pendingFiles.Count > 0) { debounceTimer.Stop(); debounceTimer.Start(); }
         }

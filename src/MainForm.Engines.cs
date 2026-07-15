@@ -261,7 +261,7 @@ namespace AVUI
                 buttons.BackColor = Theme.Bg;
                 var cancel = MakeButton(Lang.T("btn.cancel"), 100, Theme.Card, Theme.Bg, Ico.Close);
                 cancel.DialogResult = DialogResult.Cancel;
-                var ok2 = MakeButton("OK", 90, Theme.Accent, Theme.AccentHot, Ico.Check);
+                var ok2 = MakeButton(Lang.T("btn.ok"), 90, Theme.Accent, Theme.AccentHot, Ico.Check);
                 ok2.DialogResult = DialogResult.OK;
                 buttons.Controls.Add(cancel);
                 buttons.Controls.Add(ok2);
@@ -380,7 +380,7 @@ namespace AVUI
                 buttons.BackColor = Theme.Bg;
                 var cancel = MakeButton(Lang.T("btn.cancel"), 100, Theme.Card, Theme.Bg, Ico.Close);
                 cancel.DialogResult = DialogResult.Cancel;
-                var ok2 = MakeButton("OK", 90, Theme.Accent, Theme.AccentHot, Ico.Check);
+                var ok2 = MakeButton(Lang.T("btn.ok"), 90, Theme.Accent, Theme.AccentHot, Ico.Check);
                 ok2.DialogResult = DialogResult.OK;
                 buttons.Controls.Add(cancel);
                 buttons.Controls.Add(ok2);

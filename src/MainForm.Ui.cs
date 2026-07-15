@@ -751,7 +751,7 @@ namespace AVUI
                     catch { }
                 };
                 // opens the public VT page for this hash in the browser — no API key needed
-                var vt = MakeButton("VIRUSTOTAL", 150, Theme.Card, Theme.Bg, Ico.Radar);
+                var vt = MakeButton(Lang.T("btn.virustotal"), 150, Theme.Card, Theme.Bg, Ico.Radar);
                 vt.Enabled = hash.Length == 64;
                 vt.Click += delegate { VtOpenInBrowser(hash); };
                 buttons.Controls.Add(close);

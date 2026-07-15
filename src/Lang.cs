@@ -116,6 +116,8 @@ namespace AVUI
             A("btn.installPF", "INSTALL FOR THIS USER", "ВСТАНОВИТИ ДЛЯ КОРИСТУВАЧА");
             A("btn.fixWinTemp", "FIX C:\\WINDOWS\\TEMP ACCESS", "ВІДНОВИТИ ДОСТУП ДО C:\\WINDOWS\\TEMP");
             A("btn.close", "Close", "Закрити");
+            A("btn.ok", "OK", "OK");
+            A("btn.virustotal", "VIRUSTOTAL", "VIRUSTOTAL"); // brand name — identical in both languages
             A("btn.toExclusions", "To exclusions", "У виключення");
             A("btn.delete", "Delete", "Видалити");
             A("btn.toQuarantine", "To quarantine", "В карантин");

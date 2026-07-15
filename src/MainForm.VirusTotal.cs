@@ -34,9 +34,16 @@ namespace AVUI
         bool vtUploadEnabled;        // settings: vtupload=1 — OPT-IN, off by default
         readonly List<string[]> vtQueue = new List<string[]>(); // {path, hash-or-null}
         // Files flagged only by a YARA rule, held back (not quarantined, no threat
-        // dialog) until the VirusTotal verdict arrives: path → "YARA:<rule>"
-        readonly Dictionary<string, string> vtPendingYara
-            = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        // dialog) until the VirusTotal verdict arrives. The rate limit means the
+        // verdict may land after another scan has started and reset the shared
+        // scan state, so each entry carries its own scan's context:
+        // path → {"YARA:<rule>", scan description}
+        readonly Dictionary<string, string[]> vtPendingYara
+            = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+        // Threat verdicts that arrived while an unrelated scan was running:
+        // parked here instead of that scan's foundFiles, surfaced by
+        // FlushVtLateThreats once the scan is done. {path, threat, scan desc}
+        readonly List<string[]> vtLateThreats = new List<string[]>();
         Timer vtTimer;
         volatile bool vtBusy;        // a lookup/upload is in flight
         DateTime vtPauseUntil;       // backoff after 429 / rejected key
@@ -186,11 +193,12 @@ namespace AVUI
             }
             // A file held back on YARA suspicion gets its own resolution path —
             // this is where "quarantine or not" is actually decided.
-            string yaraThreat;
-            if (vtPendingYara.TryGetValue(path, out yaraThreat))
+            string[] pendingYara;
+            if (vtPendingYara.TryGetValue(path, out pendingYara))
             {
                 vtPendingYara.Remove(path);
-                ResolvePendingYara(path, name, yaraThreat, VtClassify(status, mal, susp, total),
+                ResolvePendingYara(path, name, pendingYara[0], pendingYara[1],
+                    VtClassify(status, mal, susp, total),
                     mal, susp, total, err != null ? err : "HTTP " + status);
                 return;
             }
@@ -211,10 +219,7 @@ namespace AVUI
                             UpdateStatsUi();
                         }
                         else
-                        {
-                            foundFiles.Add(new string[] { path, threat });
-                            if (!scanRunning) { RestoreFromTray(); ShowThreatDialog(); }
-                        }
+                            VtReportThreat(path, threat, Lang.T("desc.vtCheck"));
                     }
                 }
                 else if (mal > 0 || susp > 0)
@@ -237,8 +242,8 @@ namespace AVUI
         // LikelyClean → released, nothing touched; everything else stays a
         // suspicion: silent quarantine when auto-quarantine is on (the user asked
         // for hands-off handling), the threat dialog otherwise.
-        void ResolvePendingYara(string path, string name, string yaraThreat, VtVerdict verdict,
-            int mal, int susp, int total, string err)
+        void ResolvePendingYara(string path, string name, string yaraThreat, string scanDesc,
+            VtVerdict verdict, int mal, int susp, int total, string err)
         {
             if (!File.Exists(path))
             {
@@ -269,7 +274,7 @@ namespace AVUI
             else // Unavailable
                 AppendLog(string.Format(Lang.T("log.vtYaraUnavailable"), name, err), Theme.Warn, "WARN", false);
 
-            if (chkQuarantine.Checked && QuarantineFile(path, threat, currentScanDesc))
+            if (chkQuarantine.Checked && QuarantineFile(path, threat, scanDesc))
             {
                 AppendLog(string.Format(Lang.T("log.vtYaraQuarantined"), name), Theme.Warn, "WARN", false);
                 SaveSettings();
@@ -278,8 +283,27 @@ namespace AVUI
             }
             // no auto-quarantine — or it failed (locked file): either way the user
             // must still get the threat dialog to decide what happens to the file
-            foundFiles.Add(new string[] { path, threat });
-            if (!scanRunning) { RestoreFromTray(); ShowThreatDialog(); }
+            VtReportThreat(path, threat, scanDesc);
+        }
+
+        // Puts a VT-confirmed threat in front of the user without touching a
+        // running scan's foundFiles/currentScanDesc — the verdict may belong to
+        // an earlier scan whose state was already reset.
+        void VtReportThreat(string path, string threat, string scanDesc)
+        {
+            vtLateThreats.Add(new string[] { path, threat, scanDesc });
+            if (!scanRunning) FlushVtLateThreats();
+        }
+
+        // Shows the parked verdicts in their own threat dialog. Called right away
+        // when nothing is running, otherwise from FinishScan.
+        void FlushVtLateThreats()
+        {
+            if (vtLateThreats.Count == 0) return;
+            var late = new List<string[]>(vtLateThreats);
+            vtLateThreats.Clear();
+            RestoreFromTray();
+            ShowThreatDialog(late);
         }
 
         // ---------- Opt-in upload of files unknown to VirusTotal ----------

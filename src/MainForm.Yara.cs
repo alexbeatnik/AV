@@ -354,7 +354,7 @@ namespace AVUI
                 if (hash != null && VtQueueFile(path, hash))
                 {
                     pending++;
-                    vtPendingYara[path] = threat;
+                    vtPendingYara[path] = new string[] { threat, currentScanDesc };
                     AppendLog(string.Format(Lang.T("log.yaraSuspiciousPending"), path, threat), Theme.Warn, "WARN", false);
                     continue;
                 }
