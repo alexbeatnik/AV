@@ -51,8 +51,8 @@ One `MainForm` class split into partial files by concern:
 | `src/MainForm.Monitor.cs` | FileSystemWatcher monitoring, exclusions |
 | `src/MainForm.Install.cs` | per-user install/uninstall, ACL fixes |
 | `src/MainForm.Usb.cs` | USB volume-arrival prompt |
-| `src/MainForm.Yara.cs` | YARA engine: yara64/Forge-rules download, the post-ClamAV scan phase (`OnScanExit` → `RunYaraPhase` → `FinishScan`) |
-| `src/MainForm.VirusTotal.cs` | VT API v3: throttled SHA256 lookups, opt-in uploads, trust tiers (`VtClassify`/`ResolvePendingYara` — YARA-only matches are held untouched until the VT verdict decides quarantine / release / user decision) |
+| `src/MainForm.Yara.cs` | YARA engine: yara64/Forge-rules download, the post-ClamAV scan phase (`OnScanExit` → `RunYaraPhase` → `FinishScan`); phase progress % from the process's IO read counters vs the list's total size (`YaraProgressTick`, `GetProcessIoCounters` P/Invoke) — yara64 prints nothing per file |
+| `src/MainForm.VirusTotal.cs` | VT API v3: throttled SHA256 lookups, opt-in uploads, trust tiers (`VtClassify`/`ResolvePendingYara` — YARA-only matches are held untouched until the VT verdict decides quarantine / release / user decision). Each pending entry carries its own scan's description; verdicts landing during an unrelated scan are parked in `vtLateThreats` and surfaced after it (`FlushVtLateThreats`); a summary toast fires only when the last verdict is in (`VtNotifyPendingDone`) |
 | `src/MainForm.Engines.cs` | the Settings → engines dialog (YARA toggle, VT key) |
 | `src/Controls.cs`, `src/Icons.cs`, `src/Theme.cs` | custom-drawn controls, glyphs, dark palette |
 | `src/Lang.cs` | the English/Ukrainian string table |
@@ -75,6 +75,14 @@ higher-integrity) processes are silently skipped; dumps are capped (per-region
 and total) and cleaned up on every scan-exit path and on form close
 (`CleanupMemDumps`).
 
+A scan runs as user-visible phases: ClamAV, then YARA, then (when YARA held
+files back and a VT key is set) the VirusTotal verdicts. The status bar labels
+them "Phase N of 2/3" (`PhasePrefix` in `MainForm.Scan.cs` — total depends on
+`VtActive`; scans without a YARA phase show no label), and each phase drives
+the shared progress bar its own way: ClamAV by scanned-file count from
+clamscan/clamd output, YARA by process IO read bytes, VirusTotal by verdicts
+received.
+
 Scan size limits are centralized in `ScanLimitsArg(bool skipBig)` (clamscan
 args) and mirrored in `WriteClamdConf()` (clamd.conf) — keep the two in sync.
 The per-file/scan-size cap is user-controlled by the "skip large files"
@@ -92,7 +100,9 @@ Follow the matching rule whenever a change touches one of these areas:
   controls are re-texted in `ApplyLanguage()`.
 - **`settings-key`** — a `settings.ini` key needs a parser line in
   `LoadSettings()`, a writer in `SaveSettings()`, and graceful degradation
-  when missing from old files. Exception: the VirusTotal API key lives in its
+  when missing from old files. A corrupt value must never take down startup:
+  timestamp keys parse through `TryParseTicks` (range-checked), never a bare
+  `new DateTime(ticks)`. Exception: the VirusTotal API key lives in its
   own `vt.key` file (`SaveVtKey`), written only when the user changes the key —
   so a fresh download's default `settings.ini` can never wipe it on install
   (`CarryOverFile` in `MainForm.Install.cs` also never overwrites existing

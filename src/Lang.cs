@@ -116,6 +116,8 @@ namespace AVUI
             A("btn.installPF", "INSTALL FOR THIS USER", "ВСТАНОВИТИ ДЛЯ КОРИСТУВАЧА");
             A("btn.fixWinTemp", "FIX C:\\WINDOWS\\TEMP ACCESS", "ВІДНОВИТИ ДОСТУП ДО C:\\WINDOWS\\TEMP");
             A("btn.close", "Close", "Закрити");
+            A("btn.ok", "OK", "OK");
+            A("btn.virustotal", "VIRUSTOTAL", "VIRUSTOTAL"); // brand name — identical in both languages
             A("btn.toExclusions", "To exclusions", "У виключення");
             A("btn.delete", "Delete", "Видалити");
             A("btn.toQuarantine", "To quarantine", "В карантин");
@@ -247,6 +249,8 @@ namespace AVUI
 
             // Progress / ETA
             A("status.progress", "Scanned {0} of {1} ({2:0}%){3}, threats: {4}", "Скановано {0} із {1} ({2:0}%){3}, загроз: {4}");
+            A("phase.label", "Phase {0} of {1}: ", "Фаза {0} з {1}: ");
+            A("status.vtPending", "VirusTotal — verdicts received: {0} of {1}", "VirusTotal — вердиктів отримано: {0} із {1}");
             A("eta.remainingPrefix", ", remaining ", ", залишилось ");
             A("eta.estimating", ", estimating time…", ", оцінюю час…");
             A("time.hm", "{0:0}h {1:0}m", "{0:0} год {1:0} хв");
@@ -506,7 +510,9 @@ namespace AVUI
             A("section.yara", "YARA scan", "YARA-сканування");
             A("log.yaraScanning", "Checking the same files against YARA rules…\r\n", "Перевіряю ті самі файли YARA-правилами…\r\n");
             A("status.yaraScanning", "YARA scan…", "YARA-сканування…");
+            A("status.yaraProgress", "YARA rule check: {0:0}%{1}", "Перевірка YARA-правилами: {0:0}%{1}");
             A("log.hbYara", "YARA rules are checking the files… elapsed {1}\r\n", "YARA-правила перевіряють файли… минуло {1}\r\n");
+            A("log.hbYaraPct", "YARA rules are checking the files… {2:0}%, elapsed {1}\r\n", "YARA-правила перевіряють файли… {2:0}%, минуло {1}\r\n");
             A("log.yaraClean", "YARA: no additional detections ✔\r\n", "YARA: додаткових загроз не виявлено ✔\r\n");
             A("log.yaraFound", "YARA: suspicious files found: {0}\r\n", "YARA: знайдено підозрілих файлів: {0}\r\n");
             A("log.yaraExitCode", "yara64 finished with code {0} (some files may have been skipped).\r\n", "yara64 завершився з кодом {0} (частину файлів могло бути пропущено).\r\n");
@@ -571,8 +577,16 @@ namespace AVUI
                 "YARA: підозрілих файлів надіслано на перевірку VirusTotal: {0} — до вердикту нічого не чіпаю.\r\n");
             A("log.donePendingVt", "Scan finished; {0} suspicious file(s) are awaiting the VirusTotal verdict — results will appear here.\r\n",
                 "Сканування завершено; файлів в очікуванні вердикту VirusTotal: {0} — результати з'являться тут.\r\n");
-            A("tray.donePendingVt", "Scan finished — {0} suspicious file(s) awaiting the VirusTotal verdict",
-                "Сканування завершено — файлів чекають на вердикт VirusTotal: {0}");
+            // the tray toast fires only once every held-back verdict is in — a
+            // "still waiting" toast gives the user nothing to act on
+            A("log.vtPendingAllClean", "VirusTotal: all {0} held-back suspicious file(s) came back clean ✔\r\n",
+                "VirusTotal: усі відкладені підозрілі файли ({0}) виявилися чистими ✔\r\n");
+            A("tray.vtPendingAllClean", "VirusTotal check finished — all {0} suspicious file(s) are clean",
+                "Перевірку VirusTotal завершено — усі підозрілі файли ({0}) чисті");
+            A("log.vtPendingDone", "VirusTotal check finished: {0} of {1} held-back file(s) still need attention.\r\n",
+                "Перевірку VirusTotal завершено: потребують уваги {0} із {1} відкладених файлів.\r\n");
+            A("tray.vtPendingDone", "VirusTotal check finished — {0} of {1} suspicious file(s) need attention",
+                "Перевірку VirusTotal завершено — потребують уваги {0} із {1} підозрілих файлів");
             A("log.vtYaraLikelyFp", "{0}: clean on VirusTotal (0/{1}) — the {2} match looks like a false positive; the file was left in place.\r\n",
                 "{0}: чистий на VirusTotal (0/{1}) — збіг {2} схожий на хибне спрацювання; файл залишено на місці.\r\n");
             A("log.vtYaraConfirmed", "VirusTotal confirms the YARA suspicion: {0} of {1} engines flag {2}\r\n",

@@ -109,6 +109,16 @@ namespace AVUI
             return string.Format(Lang.T("time.s"), t.TotalSeconds);
         }
 
+        // "Phase X of Y: " status-bar prefix. Y is stable for the whole scan:
+        // 2 without a VirusTotal key, 3 with one — the VT phase itself only
+        // materializes when YARA holds files back for verdicts, so a clean
+        // scan may end after phase 2 of 3. A scan without a YARA phase is
+        // single-engine and shows no label (callers skip it).
+        string PhasePrefix(int current)
+        {
+            return string.Format(Lang.T("phase.label"), current, VtActive ? 3 : 2);
+        }
+
         void UpdateScanProgress()
         {
             if (totalToScan <= 0 || scannedCount <= 0) return;
@@ -134,7 +144,8 @@ namespace AVUI
                 eta = lastEta.Length > 0 ? Lang.T("eta.remainingPrefix") + lastEta : Lang.T("eta.estimating");
                 if (winElapsed >= 30) { rateWinTime = DateTime.Now; rateWinCount = scannedCount; } // shift the window
             }
-            statusLabel.Text = string.Format(Lang.T("status.progress"),
+            statusLabel.Text = (yaraPhasePending ? PhasePrefix(1) : "")
+                + string.Format(Lang.T("status.progress"),
                 scannedCount, totalToScan, f * 100, eta, foundCount);
             scanProgressLabel.Text = ProgressBarText(f)
                 + string.Format("  {0} / {1}  ({2:0}%)", scannedCount, totalToScan, f * 100);
@@ -167,7 +178,10 @@ namespace AVUI
             if (yaraRunning)
             {
                 string yaraElapsed = yaraPhaseStart != DateTime.MinValue ? FormatSpan(DateTime.Now - yaraPhaseStart) : elapsed;
-                AppendLog(string.Format(Lang.T("log.hbYara"), DateTime.Now, yaraElapsed), Theme.Muted, "SCAN", false);
+                if (yaraLastFraction > 0)
+                    AppendLog(string.Format(Lang.T("log.hbYaraPct"), DateTime.Now, yaraElapsed, yaraLastFraction * 100), Theme.Muted, "SCAN", false);
+                else
+                    AppendLog(string.Format(Lang.T("log.hbYara"), DateTime.Now, yaraElapsed), Theme.Muted, "SCAN", false);
                 return;
             }
             bool stalled = (DateTime.Now - lastScanOutput).TotalSeconds >= 9; // no new output
@@ -1131,9 +1145,12 @@ namespace AVUI
                 if (vtPendingYara.Count > 0)
                 {
                     // suspicious files are still awaiting the VirusTotal verdict —
-                    // don't announce a clean result that may flip in a minute
+                    // don't announce a clean result that may flip in a minute. No
+                    // tray toast here either: it fires with the actual outcome
+                    // once the last verdict arrives (VtNotifyPendingDone)
                     AppendLog(string.Format(Lang.T("log.donePendingVt"), vtPendingYara.Count), Theme.Warn, "WARN", false);
-                    Notify(5000, string.Format(Lang.T("tray.donePendingVt"), vtPendingYara.Count), ToolTipIcon.Info);
+                    statusLabel.Text = PhasePrefix(3)
+                        + string.Format(Lang.T("status.vtPending"), 0, vtPendingYara.Count);
                 }
                 else if (wasMonitor)
                 {
@@ -1166,6 +1183,9 @@ namespace AVUI
                 RefreshDbStatus();
             }
             CleanupMemDumps(); // after the (modal) threat dialog, so found dumps stayed listable
+            // VirusTotal verdicts that landed while this scan was running were
+            // parked to keep the scan's state clean — surface them now
+            FlushVtLateThreats();
             // New files may have appeared while the scan was running
             if (pendingFiles.Count > 0) { debounceTimer.Stop(); debounceTimer.Start(); }
         }

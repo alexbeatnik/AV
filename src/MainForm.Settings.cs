@@ -187,6 +187,22 @@ namespace AVUI
 
         bool loadingSettings;
 
+        // Timestamps come from settings.ini, which may be corrupt: a value that
+        // parses as long can still lie outside DateTime's valid tick range and
+        // new DateTime(ticks) would throw, taking down startup. Out-of-range
+        // values are ignored so the field keeps its default.
+        internal static bool TryParseTicks(string s, out DateTime value)
+        {
+            long ticks;
+            if (long.TryParse(s, out ticks) && ticks > 0 && ticks <= DateTime.MaxValue.Ticks)
+            {
+                value = new DateTime(ticks);
+                return true;
+            }
+            value = DateTime.MinValue;
+            return false;
+        }
+
         void LoadSettings()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -238,9 +254,8 @@ namespace AVUI
                     else if (t == "sched=daily") schedMode = 1; // weekly is the field default
                     else if (t.StartsWith("lastsched="))
                     {
-                        long ticks;
-                        if (long.TryParse(t.Substring(10), out ticks) && ticks > 0)
-                            lastScheduledScan = new DateTime(ticks);
+                        DateTime dt;
+                        if (TryParseTicks(t.Substring(10), out dt)) lastScheduledScan = dt;
                     }
                     else if (t == "yara=0") yaraEnabled = false;
                     // legacy (pre-0.0.3): the key used to live in settings.ini;
@@ -250,9 +265,8 @@ namespace AVUI
                     else if (t == "vtupload=1") vtUploadEnabled = true; // opt-in, off unless explicitly enabled
                     else if (t.StartsWith("lastyararules="))
                     {
-                        long ticks;
-                        if (long.TryParse(t.Substring(14), out ticks) && ticks > 0)
-                            lastYaraRulesCheck = new DateTime(ticks);
+                        DateTime dt;
+                        if (TryParseTicks(t.Substring(14), out dt)) lastYaraRulesCheck = dt;
                     }
                     else if (t == "autostartinit=1") autostartInitialized = true;
                     else if (t == "modeasked=1") { modeAsked = true; modeAskedSeen = true; }
@@ -268,21 +282,18 @@ namespace AVUI
                     }
                     else if (t.StartsWith("dbcooldown="))
                     {
-                        long ticks;
-                        if (long.TryParse(t.Substring(11), out ticks) && ticks > 0)
-                            dbCooldownUntil = new DateTime(ticks);
+                        DateTime dt;
+                        if (TryParseTicks(t.Substring(11), out dt)) dbCooldownUntil = dt;
                     }
                     else if (t.StartsWith("lastdbcheck="))
                     {
-                        long ticks;
-                        if (long.TryParse(t.Substring(12), out ticks) && ticks > 0)
-                            lastDbCheck = new DateTime(ticks);
+                        DateTime dt;
+                        if (TryParseTicks(t.Substring(12), out dt)) lastDbCheck = dt;
                     }
                     else if (t.StartsWith("lastappcheck="))
                     {
-                        long ticks;
-                        if (long.TryParse(t.Substring(13), out ticks) && ticks > 0)
-                            lastAppUpdateCheck = new DateTime(ticks);
+                        DateTime dt;
+                        if (TryParseTicks(t.Substring(13), out dt)) lastAppUpdateCheck = dt;
                     }
                     else if (t.StartsWith("totalScans=")) long.TryParse(t.Substring(11), out totalScans);
                     else if (t.StartsWith("totalFiles=")) long.TryParse(t.Substring(11), out totalFilesScanned);

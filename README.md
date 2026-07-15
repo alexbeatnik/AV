@@ -75,7 +75,11 @@ Windows Defender is excellent, and this project is not intended to replace it. I
 ## How the three engines work together
 
 Every scan (manual, quick, full, RAM, and the automatic new-file monitor) runs
-in phases over the exact same file list:
+in phases over the exact same file list. The status bar labels them —
+**Phase 1 of 3: ClamAV**, **Phase 2 of 3: YARA**, **Phase 3 of 3: VirusTotal**
+(of 2 when no VT key is set) — and each phase has its own progress: ClamAV
+counts scanned files, YARA tracks the bytes its process has actually read
+(yara64 prints nothing per file), VirusTotal counts verdicts received.
 
 1. **ClamAV** scans the files (manual scans use the fast `clamd` daemon with
    parallel workers, falling back to `clamscan` automatically; the small
@@ -102,11 +106,13 @@ in phases over the exact same file list:
 | YARA match, VT inconclusive / unknown / unreachable | suspicion | your call via the threat dialog (or quietly quarantined when auto-quarantine is on — reversible from the Quarantine page) |
 | YARA match, no VT key configured | suspicion | classic flow: threat dialog / auto-quarantine |
 
-While a file awaits its VirusTotal verdict nothing touches it, the scan
-summary says so, and the verdict lands in the log (and tray) usually within
-seconds. YARA matches on dumped process memory skip the waiting step — the
-dump files are deleted when the scan ends, so they go straight to the threat
-flow.
+While a file awaits its VirusTotal verdict nothing touches it and the scan
+summary says so; each verdict lands in the log as it arrives, and once the
+last one is in, a single tray notification reports the actual outcome ("all N
+clean" or "X of N need attention") — quarantine records keep the scan the
+suspicion actually came from, even if another scan ran in between. YARA
+matches on dumped process memory skip the waiting step — the dump files are
+deleted when the scan ends, so they go straight to the threat flow.
 
 The YARA engine (`yara64.exe`, from the official
 [VirusTotal/yara](https://github.com/VirusTotal/yara) releases) and the YARA
@@ -170,7 +176,8 @@ Every scanned file follows a multi-stage defense-in-depth security pipeline to i
 - **Neutralized quarantine** (XOR-transformed `.quar` files that can't run and
   don't trip other AVs), with search, sorting, properties incl. SHA256
 - **Exclusions**, **USB scan offer**, **scan performance modes**, readable
-  color-coded log with progress and ETA, statistics
+  color-coded log with per-phase progress and ETA (including a real percent
+  for the YARA phase and per-engine timing in the summary), statistics
 - One-click signature updates, daily auto-checks (with a **stale-database
   warning** once the signatures are over a week old), app **self-update** from
   this repo's GitHub Releases

@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
@@ -30,6 +31,22 @@ namespace AVUI
         volatile bool yaraRunning;        // the yara64 process is scanning (heartbeat message)
         readonly Dictionary<string, string> yaraMatches
             = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // path → rule
+        Timer yaraProgressTimer;          // polls yara64's IO counters for the progress bar
+        long yaraTotalBytes;              // bytes yara64 is expected to read (computed in the background)
+        double yaraLastFraction;          // last estimate, reused by the 10s heartbeat log line
+
+        // yara64 prints nothing per file, so unlike the ClamAV phase there is no
+        // output to count. Progress is instead estimated from how many bytes the
+        // process has actually read (charged to it by the OS, including
+        // memory-mapped page-ins) out of the total size of the files on its list.
+        [StructLayout(LayoutKind.Sequential)]
+        struct IO_COUNTERS
+        {
+            public ulong ReadOperationCount, WriteOperationCount, OtherOperationCount;
+            public ulong ReadTransferCount, WriteTransferCount, OtherTransferCount;
+        }
+        [DllImport("kernel32.dll")]
+        static extern bool GetProcessIoCounters(IntPtr hProcess, out IO_COUNTERS counters);
 
         const string YaraApiUrl = "https://api.github.com/repos/VirusTotal/yara/releases/latest";
         // known-good pin if the GitHub API is unreachable (same pattern as the ClamAV download)
@@ -239,6 +256,7 @@ namespace AVUI
             yaraPhaseStart = DateTime.Now;
             yaraMatches.Clear();
             yaraErrLines = 0;
+            yaraLastFraction = 0;
             if (!monitorScan) AppendSection(Lang.T("section.yara"));
 
             // On Windows, yara64.exe expects the --scan-list file to be encoded in
@@ -250,6 +268,7 @@ namespace AVUI
             // otherwise they cannot be opened anyway and would cause unreadable error logs.
             string scanList = yaraListPath;
             int unsupported = 0;
+            List<string> safePaths = null; // kept for the progress total below
             try
             {
                 var unicodeWithoutBom = new UnicodeEncoding(false, false);
@@ -262,6 +281,9 @@ namespace AVUI
                     FinishScan(clamCode);
                     return;
                 }
+                // kept before the list-file write: if that throws, the scan falls
+                // back to the shared UTF-8 list but the progress total still works
+                safePaths = safe;
                 string unicodeList = Path.Combine(Path.GetTempPath(), "av-yara-" + Guid.NewGuid().ToString("N") + ".txt");
                 File.WriteAllLines(unicodeList, safe.ToArray(), unicodeWithoutBom);
                 batchListPaths.Add(unicodeList); // cleaned with the other scan lists
@@ -271,8 +293,23 @@ namespace AVUI
             }
             catch { } // fall back to the shared UTF-8 list — worst case is the old behavior
 
+            // Total workload for the progress estimate, summed off the UI thread
+            // (metadata-only reads; the OS cache is still warm from the ClamAV
+            // phase). Until it's done the bar just sits at 0%.
+            yaraTotalBytes = 0;
+            if (!monitorScan && safePaths != null)
+            {
+                bool skipBig = chkSkipBig.Checked;
+                string[] sizePaths = safePaths.ToArray();
+                System.Threading.ThreadPool.QueueUserWorkItem(delegate
+                {
+                    long sum = YaraWorkloadBytes(sizePaths, skipBig);
+                    System.Threading.Interlocked.Exchange(ref yaraTotalBytes, sum);
+                });
+            }
+
             AppendLog(Lang.T("log.yaraScanning"), monitorScan ? Theme.Muted : Theme.Text, "SCAN", monitorScan);
-            statusLabel.Text = Lang.T("status.yaraScanning");
+            statusLabel.Text = PhasePrefix(2) + Lang.T("status.yaraScanning");
 
             var args = new StringBuilder();
             args.Append("-w -f -p ").Append(Math.Min(PerfMaxThreads(perfMode), Environment.ProcessorCount));
@@ -289,6 +326,77 @@ namespace AVUI
             yaraRunning = true;
             // yara64 outputs in UTF-8 (handled by standard StartProcess overload)
             StartProcess(YaraExe, args.ToString(), OnYaraLine, OnYaraExit);
+            if (!monitorScan)
+            {
+                // the bar restarts from 0 for this phase (the ClamAV part just
+                // showed 100%) and climbs again as yara reads through the files
+                progress.SetFraction(0);
+                shield.SetProgress(0);
+                scanProgressLabel.Text = ProgressBarText(0);
+                if (yaraProgressTimer == null)
+                {
+                    yaraProgressTimer = new Timer();
+                    yaraProgressTimer.Interval = 1000;
+                    yaraProgressTimer.Tick += delegate { YaraProgressTick(); };
+                }
+                yaraProgressTimer.Start();
+            }
+        }
+
+        // Bytes the YARA phase is expected to read: the size of every file on
+        // its list, minus files over the 200 MB cap when "skip large files" is
+        // on (--skip-larger means yara never opens them). Missing/unreadable
+        // files count as 0 — the estimate errs toward finishing early.
+        internal static long YaraWorkloadBytes(IEnumerable<string> paths, bool skipBig)
+        {
+            long sum = 0;
+            foreach (string p in paths)
+            {
+                try
+                {
+                    long len = new FileInfo(p).Length;
+                    if (!skipBig || len <= 209715200) sum += len;
+                }
+                catch { }
+            }
+            return sum;
+        }
+
+        // Progress fraction for the YARA phase. Rule compilation reads a few
+        // extra MB, so the value is capped below 100% — only the real process
+        // exit completes the phase. 0 while the total isn't known yet.
+        internal static double YaraProgressFraction(long readBytes, long totalBytes)
+        {
+            if (totalBytes <= 0 || readBytes <= 0) return 0;
+            if (readBytes > totalBytes) readBytes = totalBytes;
+            return Math.Min(0.99, (double)readBytes / totalBytes);
+        }
+
+        // Drives the progress bar during the YARA phase: bytes the yara64
+        // process has read vs the list's total size.
+        void YaraProgressTick()
+        {
+            if (!yaraRunning) { yaraProgressTimer.Stop(); return; }
+            long total = System.Threading.Interlocked.Read(ref yaraTotalBytes);
+            Process p = currentProc;
+            if (total <= 0 || p == null) return;
+            IO_COUNTERS io;
+            try { if (!GetProcessIoCounters(p.Handle, out io)) return; }
+            catch { return; } // the process just exited under us
+            long read = io.ReadTransferCount > long.MaxValue ? long.MaxValue : (long)io.ReadTransferCount;
+            if (read > total) read = total;
+            double f = YaraProgressFraction(read, total);
+            yaraLastFraction = f;
+            progress.SetFraction(f);
+            shield.SetProgress(f);
+            string eta = "";
+            double elapsed = (DateTime.Now - yaraPhaseStart).TotalSeconds;
+            if (elapsed > 15 && read > 0)
+                eta = Lang.T("eta.remainingPrefix")
+                    + "~" + FormatSpan(TimeSpan.FromSeconds((total - read) / (read / elapsed)));
+            statusLabel.Text = PhasePrefix(2) + string.Format(Lang.T("status.yaraProgress"), f * 100, eta);
+            scanProgressLabel.Text = ProgressBarText(f)
+                + string.Format("  {0} / {1}  ({2:0}%)", FormatSize(read), FormatSize(total), f * 100);
         }
 
         // Match lines look like "RuleName C:\path\file"; anything else (compile
@@ -331,6 +439,7 @@ namespace AVUI
         void OnYaraExit(int code)
         {
             yaraRunning = false;
+            if (yaraProgressTimer != null) yaraProgressTimer.Stop();
             int extra = 0, pending = 0;
             foreach (KeyValuePair<string, string> kv in yaraMatches)
             {
@@ -354,7 +463,7 @@ namespace AVUI
                 if (hash != null && VtQueueFile(path, hash))
                 {
                     pending++;
-                    vtPendingYara[path] = threat;
+                    vtPendingYara[path] = new string[] { threat, currentScanDesc };
                     AppendLog(string.Format(Lang.T("log.yaraSuspiciousPending"), path, threat), Theme.Warn, "WARN", false);
                     continue;
                 }

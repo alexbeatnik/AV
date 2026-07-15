@@ -231,7 +231,12 @@ namespace AVUI
         }
 
         // Asks the user what to do with each detected threat
-        void ShowThreatDialog()
+        void ShowThreatDialog() { ShowThreatDialog(foundFiles); }
+
+        // threats: {path, threat name, [scan description]} — the optional third
+        // element overrides currentScanDesc for the quarantine record, so late
+        // VirusTotal verdicts keep the scan they actually came from
+        void ShowThreatDialog(List<string[]> threats)
         {
             using (var dlg = new Form())
             {
@@ -248,11 +253,11 @@ namespace AVUI
                 list.Columns.Add(Lang.T("col.file"), 400);
                 list.Columns.Add(Lang.T("col.threat"), 280);
 
-                foreach (string[] f in foundFiles)
+                foreach (string[] f in threats)
                 {
                     if (!File.Exists(f[0])) continue; // already moved or gone
                     var item = new ListViewItem(new string[] { f[0], f[1] });
-                    item.Tag = f; // {path, threat name}
+                    item.Tag = f; // {path, threat name, [scan description]}
                     list.Items.Add(item);
                 }
                 if (list.Items.Count == 0) return;
@@ -273,7 +278,7 @@ namespace AVUI
 
                 var close = MakeButton(Lang.T("btn.close"), 90, Theme.Card, Theme.Bg, Ico.Close);
                 close.DialogResult = DialogResult.Cancel;
-                var vt = MakeButton("VIRUSTOTAL", 130, Theme.Card, Theme.Bg, Ico.Radar);
+                var vt = MakeButton(Lang.T("btn.virustotal"), 130, Theme.Card, Theme.Bg, Ico.Radar);
                 var excl = MakeButton(Lang.T("btn.toExclusions"), 125, Theme.Card, Theme.Bg, Ico.Ban);
                 var del = MakeButton(Lang.T("btn.delete"), 100, Theme.Danger, Theme.DangerHot, Ico.Trash);
                 var quar = MakeButton(Lang.T("btn.toQuarantine"), 110, Theme.Accent, Theme.AccentHot, Ico.ShieldIcon);
@@ -294,7 +299,8 @@ namespace AVUI
                     foreach (var it in picked())
                     {
                         string[] meta = (string[])it.Tag;
-                        if (QuarantineFile(meta[0], meta[1], currentScanDesc)) { movedCount++; list.Items.Remove(it); }
+                        string desc = meta.Length > 2 ? meta[2] : currentScanDesc;
+                        if (QuarantineFile(meta[0], meta[1], desc)) { movedCount++; list.Items.Remove(it); }
                     }
                     SaveSettings();
                     UpdateStatsUi();

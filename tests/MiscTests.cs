@@ -40,6 +40,42 @@ namespace AVUI.Tests
         }
     }
 
+    // settings.ini timestamps: a value that parses as long but lies outside
+    // DateTime's tick range must be rejected, not crash startup
+    static class TicksParseTests
+    {
+        public static void TestValidTicksParse()
+        {
+            DateTime dt;
+            long ticks = new DateTime(2026, 7, 15).Ticks;
+            Assert.True(MainForm.TryParseTicks(ticks.ToString(), out dt), "valid ticks accepted");
+            Assert.Equal(new DateTime(2026, 7, 15), dt, "round-trips the value");
+        }
+
+        public static void TestMaxValueTicksParse()
+        {
+            DateTime dt;
+            Assert.True(MainForm.TryParseTicks(DateTime.MaxValue.Ticks.ToString(), out dt),
+                "DateTime.MaxValue.Ticks is the last valid value");
+        }
+
+        public static void TestTicksBeyondMaxRejected()
+        {
+            DateTime dt;
+            Assert.False(MainForm.TryParseTicks("3155378976000000000", out dt),
+                "ticks past DateTime.MaxValue must not throw or parse");
+        }
+
+        public static void TestGarbageRejected()
+        {
+            DateTime dt;
+            Assert.False(MainForm.TryParseTicks("", out dt), "empty");
+            Assert.False(MainForm.TryParseTicks("abc", out dt), "non-numeric");
+            Assert.False(MainForm.TryParseTicks("0", out dt), "zero");
+            Assert.False(MainForm.TryParseTicks("-5", out dt), "negative");
+        }
+    }
+
     static class FileLockTests
     {
         public static void TestClosedFileIsNotLocked()
