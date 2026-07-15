@@ -44,6 +44,9 @@ namespace AVUI
         // parked here instead of that scan's foundFiles, surfaced by
         // FlushVtLateThreats once the scan is done. {path, threat, scan desc}
         readonly List<string[]> vtLateThreats = new List<string[]>();
+        // Outcome tally of the current pending batch, for the summary toast
+        // once vtPendingYara drains (VtNotifyPendingDone)
+        int vtResolvedClean, vtResolvedFlagged;
         Timer vtTimer;
         volatile bool vtBusy;        // a lookup/upload is in flight
         DateTime vtPauseUntil;       // backoff after 429 / rejected key
@@ -200,6 +203,7 @@ namespace AVUI
                 ResolvePendingYara(path, name, pendingYara[0], pendingYara[1],
                     VtClassify(status, mal, susp, total),
                     mal, susp, total, err != null ? err : "HTTP " + status);
+                if (vtPendingYara.Count == 0) VtNotifyPendingDone();
                 return;
             }
             if (status == 200)
@@ -247,14 +251,17 @@ namespace AVUI
         {
             if (!File.Exists(path))
             {
+                vtResolvedClean++; // nothing left to act on
                 AppendLog(string.Format(Lang.T("log.vtPendingGone"), name), Theme.Muted, null, true);
                 return;
             }
             if (verdict == VtVerdict.LikelyClean)
             {
+                vtResolvedClean++;
                 AppendLog(string.Format(Lang.T("log.vtYaraLikelyFp"), path, total, yaraThreat), Theme.Good, "OK", false);
                 return;
             }
+            vtResolvedFlagged++;
             string threat = yaraThreat;
             if (verdict == VtVerdict.Confirmed)
             {
@@ -293,6 +300,26 @@ namespace AVUI
         {
             vtLateThreats.Add(new string[] { path, threat, scanDesc });
             if (!scanRunning) FlushVtLateThreats();
+        }
+
+        // Fires once the last held-back verdict is in. The scan-finished toast
+        // deliberately says nothing about pending files (the user can't act on
+        // "still waiting") — this is the concrete answer it deferred to.
+        void VtNotifyPendingDone()
+        {
+            int flagged = vtResolvedFlagged, total = vtResolvedClean + vtResolvedFlagged;
+            vtResolvedClean = vtResolvedFlagged = 0;
+            if (total == 0) return;
+            if (flagged == 0)
+            {
+                AppendLog(string.Format(Lang.T("log.vtPendingAllClean"), total), Theme.Good, "OK", false);
+                Notify(5000, string.Format(Lang.T("tray.vtPendingAllClean"), total), ToolTipIcon.Info);
+            }
+            else
+            {
+                AppendLog(string.Format(Lang.T("log.vtPendingDone"), flagged, total), Theme.Warn, "WARN", false);
+                Notify(6000, string.Format(Lang.T("tray.vtPendingDone"), flagged, total), ToolTipIcon.Warning);
+            }
         }
 
         // Shows the parked verdicts in their own threat dialog. Called right away

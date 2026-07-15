@@ -1131,9 +1131,10 @@ namespace AVUI
                 if (vtPendingYara.Count > 0)
                 {
                     // suspicious files are still awaiting the VirusTotal verdict —
-                    // don't announce a clean result that may flip in a minute
+                    // don't announce a clean result that may flip in a minute. No
+                    // tray toast here either: it fires with the actual outcome
+                    // once the last verdict arrives (VtNotifyPendingDone)
                     AppendLog(string.Format(Lang.T("log.donePendingVt"), vtPendingYara.Count), Theme.Warn, "WARN", false);
-                    Notify(5000, string.Format(Lang.T("tray.donePendingVt"), vtPendingYara.Count), ToolTipIcon.Info);
                 }
                 else if (wasMonitor)
                 {

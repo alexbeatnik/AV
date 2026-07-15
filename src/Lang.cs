@@ -573,8 +573,16 @@ namespace AVUI
                 "YARA: підозрілих файлів надіслано на перевірку VirusTotal: {0} — до вердикту нічого не чіпаю.\r\n");
             A("log.donePendingVt", "Scan finished; {0} suspicious file(s) are awaiting the VirusTotal verdict — results will appear here.\r\n",
                 "Сканування завершено; файлів в очікуванні вердикту VirusTotal: {0} — результати з'являться тут.\r\n");
-            A("tray.donePendingVt", "Scan finished — {0} suspicious file(s) awaiting the VirusTotal verdict",
-                "Сканування завершено — файлів чекають на вердикт VirusTotal: {0}");
+            // the tray toast fires only once every held-back verdict is in — a
+            // "still waiting" toast gives the user nothing to act on
+            A("log.vtPendingAllClean", "VirusTotal: all {0} held-back suspicious file(s) came back clean ✔\r\n",
+                "VirusTotal: усі відкладені підозрілі файли ({0}) виявилися чистими ✔\r\n");
+            A("tray.vtPendingAllClean", "VirusTotal check finished — all {0} suspicious file(s) are clean",
+                "Перевірку VirusTotal завершено — усі підозрілі файли ({0}) чисті");
+            A("log.vtPendingDone", "VirusTotal check finished: {0} of {1} held-back file(s) still need attention.\r\n",
+                "Перевірку VirusTotal завершено: потребують уваги {0} із {1} відкладених файлів.\r\n");
+            A("tray.vtPendingDone", "VirusTotal check finished — {0} of {1} suspicious file(s) need attention",
+                "Перевірку VirusTotal завершено — потребують уваги {0} із {1} підозрілих файлів");
             A("log.vtYaraLikelyFp", "{0}: clean on VirusTotal (0/{1}) — the {2} match looks like a false positive; the file was left in place.\r\n",
                 "{0}: чистий на VirusTotal (0/{1}) — збіг {2} схожий на хибне спрацювання; файл залишено на місці.\r\n");
             A("log.vtYaraConfirmed", "VirusTotal confirms the YARA suspicion: {0} of {1} engines flag {2}\r\n",
