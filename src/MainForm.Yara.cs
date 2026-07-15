@@ -281,11 +281,13 @@ namespace AVUI
                     FinishScan(clamCode);
                     return;
                 }
+                // kept before the list-file write: if that throws, the scan falls
+                // back to the shared UTF-8 list but the progress total still works
+                safePaths = safe;
                 string unicodeList = Path.Combine(Path.GetTempPath(), "av-yara-" + Guid.NewGuid().ToString("N") + ".txt");
                 File.WriteAllLines(unicodeList, safe.ToArray(), unicodeWithoutBom);
                 batchListPaths.Add(unicodeList); // cleaned with the other scan lists
                 scanList = unicodeList;
-                safePaths = safe;
                 if (unsupported > 0)
                     AppendLog(string.Format(Lang.T("log.yaraPathsSkipped"), unsupported), Theme.Warn, "WARN", true);
             }

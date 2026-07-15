@@ -109,10 +109,11 @@ namespace AVUI
             return string.Format(Lang.T("time.s"), t.TotalSeconds);
         }
 
-        // "Phase X of Y: " status-bar prefix. Y counts what this scan will
-        // actually run: ClamAV, the YARA pass, and — when a key is set — the
-        // VirusTotal verdicts that may follow YARA suspicions. A scan without
-        // a YARA phase is single-engine and shows no label (callers skip it).
+        // "Phase X of Y: " status-bar prefix. Y is stable for the whole scan:
+        // 2 without a VirusTotal key, 3 with one — the VT phase itself only
+        // materializes when YARA holds files back for verdicts, so a clean
+        // scan may end after phase 2 of 3. A scan without a YARA phase is
+        // single-engine and shows no label (callers skip it).
         string PhasePrefix(int current)
         {
             return string.Format(Lang.T("phase.label"), current, VtActive ? 3 : 2);
