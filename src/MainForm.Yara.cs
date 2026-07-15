@@ -26,6 +26,10 @@ namespace AVUI
         int yaraSetupFails;               // consecutive download failures (see EnsureYaraSetup)
         string yaraListPath;              // file list of the current scan, reused for the YARA phase
         bool yaraPhasePending;            // a scan is running and YARA should follow the ClamAV part
+        bool yaraPhaseExpected;           // snapshot of YaraReady() at scan start — drives only the
+                                          // "Phase 1 of N" label; the phase itself is re-decided live
+                                          // in OnScanExit, so an engine that finishes downloading
+                                          // mid-scan still gets its pass (just without the label)
         int yaraClamCode;                 // ClamAV exit code, held while the YARA phase runs
         DateTime yaraPhaseStart;          // when the YARA phase of this scan began (MinValue = didn't run)
         volatile bool yaraRunning;        // the yara64 process is scanning (heartbeat message)

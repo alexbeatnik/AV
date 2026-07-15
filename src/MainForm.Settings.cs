@@ -166,17 +166,23 @@ namespace AVUI
                 DateTime newest = DbNewestTime();
                 bool stale = DbIsStale(newest, DateTime.Now);
                 btnUpdate.Visible = updateAvailable || stale;
-                // a held-open VirusTotal phase owns the hero (busy shield with the
-                // verdict percent) — don't repaint it green from a background path
-                // (daily db check, language switch); VtNotifyPendingDone restores it
-                if (!vtPhaseRunning)
+                // a held-open VirusTotal phase owns the hero — don't repaint it
+                // green from a background path (daily db check, language switch).
+                // Re-applying the busy texts keeps a language switch honest, and
+                // the verdict percent is restored because SetHero resets it;
+                // VtNotifyPendingDone brings the real protection state back
+                if (vtPhaseRunning)
                 {
-                    if (stale)
-                        SetHero(ShieldState.Warning, Lang.T("hero.dbStale"),
-                            string.Format(Lang.T("hero.dbStaleSub"), DbDateString(newest)));
-                    else
-                        SetHero(ShieldState.Ok, Lang.T("hero.protected"), string.Format(Lang.T("hero.dbFrom"), DbDateString(newest)));
+                    SetHero(ShieldState.Busy, Lang.T("hero.vtWaitTitle"), Lang.T("hero.vtWaitSub"));
+                    int got = vtResolvedClean + vtResolvedFlagged;
+                    if (got + vtPendingYara.Count > 0)
+                        shield.SetProgress((double)got / (got + vtPendingYara.Count));
                 }
+                else if (stale)
+                    SetHero(ShieldState.Warning, Lang.T("hero.dbStale"),
+                        string.Format(Lang.T("hero.dbStaleSub"), DbDateString(newest)));
+                else
+                    SetHero(ShieldState.Ok, Lang.T("hero.protected"), string.Format(Lang.T("hero.dbFrom"), DbDateString(newest)));
                 SetScanEnabled(!scanRunning && !updateRunning);
             }
             else

@@ -144,7 +144,7 @@ namespace AVUI
                 eta = lastEta.Length > 0 ? Lang.T("eta.remainingPrefix") + lastEta : Lang.T("eta.estimating");
                 if (winElapsed >= 30) { rateWinTime = DateTime.Now; rateWinCount = scannedCount; } // shift the window
             }
-            statusLabel.Text = (yaraPhasePending ? PhasePrefix(1) : "")
+            statusLabel.Text = (yaraPhasePending && yaraPhaseExpected ? PhasePrefix(1) : "")
                 + string.Format(Lang.T("status.progress"),
                 scannedCount, totalToScan, f * 100, eta, foundCount);
             scanProgressLabel.Text = ProgressBarText(f)
@@ -828,10 +828,10 @@ namespace AVUI
                 File.WriteAllLines(fullList, files.ToArray(), new UTF8Encoding(false));
                 batchListPaths.Add(fullList);
                 yaraListPath = fullList;  // the YARA phase reuses the exact same list
-                // only when the engine can actually run: this flag also drives the
-                // "Phase 1 of N" status label, and a scan whose YARA phase will be
-                // skipped (engine off / not downloaded yet) must show no label
-                yaraPhasePending = YaraReady();
+                yaraPhasePending = true;
+                // label snapshot: a scan whose YARA phase won't run (engine off /
+                // not downloaded yet) is single-engine and must show no phase label
+                yaraPhaseExpected = YaraReady();
             }
             catch (Exception ex)
             {
