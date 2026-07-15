@@ -827,7 +827,10 @@ namespace AVUI
                 File.WriteAllLines(fullList, files.ToArray(), new UTF8Encoding(false));
                 batchListPaths.Add(fullList);
                 yaraListPath = fullList;  // the YARA phase reuses the exact same list
-                yaraPhasePending = true;
+                // only when the engine can actually run: this flag also drives the
+                // "Phase 1 of N" status label, and a scan whose YARA phase will be
+                // skipped (engine off / not downloaded yet) must show no label
+                yaraPhasePending = YaraReady();
             }
             catch (Exception ex)
             {

@@ -394,7 +394,8 @@ namespace AVUI
                 batchListPaths.Add(lp);
                 args.Append(" --file-list=").Append(Quote(lp));
                 yaraListPath = lp;  // new files get the YARA pass too
-                yaraPhasePending = true;
+                yaraPhasePending = YaraReady(); // no label/phase when the engine can't run
+
             }
             catch (Exception ex)
             {
