@@ -100,14 +100,9 @@ namespace AVUI
             logo.Size = new Size(64, 64);
             logo.Location = new Point(24, 7);
             logo.BackColor = Color.Transparent;
-            var verText = new Label();
-            verText.Text = "v" + AppVersion;
-            verText.Font = new Font("Segoe UI", 8f); // small and quiet — it's a detail, not a headline
-            verText.ForeColor = Theme.Muted;
-            verText.AutoSize = true;
-            verText.Location = new Point(96, 33); // vertically centered on the shield
+            // no version label up here — the header stays just the shield mark;
+            // the version lives in Settings → About (and Windows' Apps list)
             title.Controls.Add(logo);
-            title.Controls.Add(verText);
 
             var navBar = new FlowLayoutPanel();
             navBar.Dock = DockStyle.Right;
