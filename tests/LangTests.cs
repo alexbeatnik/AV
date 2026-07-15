@@ -166,6 +166,21 @@ namespace AVUI.Tests
                 }
         }
 
+        public static void TestVtWaitHeroKeysExistInBothLanguages()
+        {
+            // the busy hero shown while a finished scan waits for its held-back
+            // VirusTotal verdicts (the scan now ends with the last verdict)
+            string[] keys = { "hero.vtWaitTitle", "hero.vtWaitSub" };
+            foreach (string key in keys)
+            {
+                string en, uk;
+                using (new LangScope(Lang.Language.English)) en = Lang.T(key);
+                using (new LangScope(Lang.Language.Ukrainian)) uk = Lang.T(key);
+                Assert.True(en != key, key + " exists in English");
+                Assert.True(uk != key && uk != en, key + " has its own Ukrainian translation");
+            }
+        }
+
         public static void TestBrandButtonKeysExist()
         {
             // btn.ok / btn.virustotal are deliberately identical in both languages

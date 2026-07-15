@@ -47,6 +47,11 @@ namespace AVUI
         // Outcome tally of the current pending batch, for the summary toast
         // once vtPendingYara drains (VtNotifyPendingDone)
         int vtResolvedClean, vtResolvedFlagged;
+        // The finished scan's phase 3 is visually still running: FinishScan kept
+        // the busy hero + progress up until the pending verdicts drain, so for
+        // the user the scan ends only with the last verdict. Cleared by
+        // VtNotifyPendingDone (normal end) and ResetScanState (a new scan takes over).
+        bool vtPhaseRunning;
         Timer vtTimer;
         volatile bool vtBusy;        // a lookup/upload is in flight
         DateTime vtPauseUntil;       // backoff after 429 / rejected key
@@ -209,6 +214,12 @@ namespace AVUI
                     int got = vtResolvedClean + vtResolvedFlagged;
                     statusLabel.Text = PhasePrefix(3)
                         + string.Format(Lang.T("status.vtPending"), got, got + vtPendingYara.Count);
+                    if (vtPhaseRunning) // phase 3 owns the scan visuals: verdicts drive the bar
+                    {
+                        double f = (double)got / (got + vtPendingYara.Count);
+                        progress.SetFraction(f);
+                        shield.SetProgress(f);
+                    }
                 }
                 return;
             }
@@ -315,12 +326,31 @@ namespace AVUI
         {
             int flagged = vtResolvedFlagged, total = vtResolvedClean + vtResolvedFlagged;
             vtResolvedClean = vtResolvedFlagged = 0;
+            // this batch was holding a finished scan's phase 3 open — the scan
+            // ends HERE for the user, so close the busy visuals and report it
+            // as a completed scan, not as a VirusTotal detail
+            bool endingScan = vtPhaseRunning;
+            vtPhaseRunning = false;
+            if (endingScan)
+            {
+                progress.Stop();
+                RefreshDbStatus(); // hero returns to the real protection state
+            }
             if (total == 0) return;
             string summary;
             if (flagged == 0)
             {
-                summary = string.Format(Lang.T("tray.vtPendingAllClean"), total);
-                AppendLog(string.Format(Lang.T("log.vtPendingAllClean"), total), Theme.Good, "OK", false);
+                if (endingScan)
+                {
+                    AppendLog(string.Format(Lang.T("log.vtPendingAllClean"), total), Theme.Good, "OK", false);
+                    AppendLog(Lang.T("log.noThreatsFound"), Theme.Good);
+                    summary = Lang.T("tray.scanDoneClean");
+                }
+                else
+                {
+                    AppendLog(string.Format(Lang.T("log.vtPendingAllClean"), total), Theme.Good, "OK", false);
+                    summary = string.Format(Lang.T("tray.vtPendingAllClean"), total);
+                }
                 Notify(5000, summary, ToolTipIcon.Info);
             }
             else

@@ -106,11 +106,13 @@ counts scanned files, YARA tracks the bytes its process has actually read
 | YARA match, VT inconclusive / unknown / unreachable | suspicion | your call via the threat dialog (or quietly quarantined when auto-quarantine is on — reversible from the Quarantine page) |
 | YARA match, no VT key configured | suspicion | classic flow: threat dialog / auto-quarantine |
 
-While a file awaits its VirusTotal verdict nothing touches it and the scan
-summary says so; each verdict lands in the log as it arrives, and once the
-last one is in, a single tray notification reports the actual outcome ("all N
-clean" or "X of N need attention") — quarantine records keep the scan the
-suspicion actually came from, even if another scan ran in between. YARA
+While a file awaits its VirusTotal verdict nothing touches it, and the scan
+does not pretend to be over: it stays in **Phase 3** (busy shield, progress
+driven by verdicts received) until the last verdict arrives. Each verdict
+lands in the log as it comes in, and the final one closes the scan with a
+single tray notification reporting the actual outcome ("scan complete: no
+threats found" or "X of N need attention") — quarantine records keep the scan
+the suspicion actually came from, even if another scan ran in between. YARA
 matches on dumped process memory skip the waiting step — the dump files are
 deleted when the scan ends, so they go straight to the threat flow.
 

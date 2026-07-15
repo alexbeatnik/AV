@@ -577,6 +577,10 @@ namespace AVUI
                 "YARA: підозрілих файлів надіслано на перевірку VirusTotal: {0} — до вердикту нічого не чіпаю.\r\n");
             A("log.donePendingVt", "Scan finished; {0} suspicious file(s) are awaiting the VirusTotal verdict — results will appear here.\r\n",
                 "Сканування завершено; файлів в очікуванні вердикту VirusTotal: {0} — результати з'являться тут.\r\n");
+            // the busy hero while a finished scan's phase 3 (held-back VirusTotal
+            // verdicts) is still running — the scan visually ends with the last verdict
+            A("hero.vtWaitTitle", "Checking with VirusTotal", "Перевірка на VirusTotal");
+            A("hero.vtWaitSub", "Waiting for the verdicts on suspicious files…", "Чекаю на вердикти щодо підозрілих файлів…");
             // the tray toast fires only once every held-back verdict is in — a
             // "still waiting" toast gives the user nothing to act on
             A("log.vtPendingAllClean", "VirusTotal: all {0} held-back suspicious file(s) came back clean ✔\r\n",

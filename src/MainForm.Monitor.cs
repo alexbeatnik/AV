@@ -395,6 +395,7 @@ namespace AVUI
                 args.Append(" --file-list=").Append(Quote(lp));
                 yaraListPath = lp;  // new files get the YARA pass too
                 yaraPhasePending = true;
+                yaraPhaseExpected = YaraReady(); // label only — OnScanExit re-decides the phase live
             }
             catch (Exception ex)
             {

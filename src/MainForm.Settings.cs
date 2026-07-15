@@ -166,7 +166,19 @@ namespace AVUI
                 DateTime newest = DbNewestTime();
                 bool stale = DbIsStale(newest, DateTime.Now);
                 btnUpdate.Visible = updateAvailable || stale;
-                if (stale)
+                // a held-open VirusTotal phase owns the hero — don't repaint it
+                // green from a background path (daily db check, language switch).
+                // Re-applying the busy texts keeps a language switch honest, and
+                // the verdict percent is restored because SetHero resets it;
+                // VtNotifyPendingDone brings the real protection state back
+                if (vtPhaseRunning)
+                {
+                    SetHero(ShieldState.Busy, Lang.T("hero.vtWaitTitle"), Lang.T("hero.vtWaitSub"));
+                    int got = vtResolvedClean + vtResolvedFlagged;
+                    if (got + vtPendingYara.Count > 0)
+                        shield.SetProgress((double)got / (got + vtPendingYara.Count));
+                }
+                else if (stale)
                     SetHero(ShieldState.Warning, Lang.T("hero.dbStale"),
                         string.Format(Lang.T("hero.dbStaleSub"), DbDateString(newest)));
                 else
