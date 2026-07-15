@@ -109,6 +109,15 @@ namespace AVUI
             return string.Format(Lang.T("time.s"), t.TotalSeconds);
         }
 
+        // "Phase X of Y: " status-bar prefix. Y counts what this scan will
+        // actually run: ClamAV, the YARA pass, and — when a key is set — the
+        // VirusTotal verdicts that may follow YARA suspicions. A scan without
+        // a YARA phase is single-engine and shows no label (callers skip it).
+        string PhasePrefix(int current)
+        {
+            return string.Format(Lang.T("phase.label"), current, VtActive ? 3 : 2);
+        }
+
         void UpdateScanProgress()
         {
             if (totalToScan <= 0 || scannedCount <= 0) return;
@@ -134,7 +143,8 @@ namespace AVUI
                 eta = lastEta.Length > 0 ? Lang.T("eta.remainingPrefix") + lastEta : Lang.T("eta.estimating");
                 if (winElapsed >= 30) { rateWinTime = DateTime.Now; rateWinCount = scannedCount; } // shift the window
             }
-            statusLabel.Text = string.Format(Lang.T("status.progress"),
+            statusLabel.Text = (yaraPhasePending ? PhasePrefix(1) : "")
+                + string.Format(Lang.T("status.progress"),
                 scannedCount, totalToScan, f * 100, eta, foundCount);
             scanProgressLabel.Text = ProgressBarText(f)
                 + string.Format("  {0} / {1}  ({2:0}%)", scannedCount, totalToScan, f * 100);
@@ -167,7 +177,10 @@ namespace AVUI
             if (yaraRunning)
             {
                 string yaraElapsed = yaraPhaseStart != DateTime.MinValue ? FormatSpan(DateTime.Now - yaraPhaseStart) : elapsed;
-                AppendLog(string.Format(Lang.T("log.hbYara"), DateTime.Now, yaraElapsed), Theme.Muted, "SCAN", false);
+                if (yaraLastFraction > 0)
+                    AppendLog(string.Format(Lang.T("log.hbYaraPct"), DateTime.Now, yaraElapsed, yaraLastFraction * 100), Theme.Muted, "SCAN", false);
+                else
+                    AppendLog(string.Format(Lang.T("log.hbYara"), DateTime.Now, yaraElapsed), Theme.Muted, "SCAN", false);
                 return;
             }
             bool stalled = (DateTime.Now - lastScanOutput).TotalSeconds >= 9; // no new output
@@ -1135,6 +1148,8 @@ namespace AVUI
                     // tray toast here either: it fires with the actual outcome
                     // once the last verdict arrives (VtNotifyPendingDone)
                     AppendLog(string.Format(Lang.T("log.donePendingVt"), vtPendingYara.Count), Theme.Warn, "WARN", false);
+                    statusLabel.Text = PhasePrefix(3)
+                        + string.Format(Lang.T("status.vtPending"), 0, vtPendingYara.Count);
                 }
                 else if (wasMonitor)
                 {

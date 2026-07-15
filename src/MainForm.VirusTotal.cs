@@ -204,6 +204,12 @@ namespace AVUI
                     VtClassify(status, mal, susp, total),
                     mal, susp, total, err != null ? err : "HTTP " + status);
                 if (vtPendingYara.Count == 0) VtNotifyPendingDone();
+                else if (!scanRunning) // don't clobber a newer scan's status bar
+                {
+                    int got = vtResolvedClean + vtResolvedFlagged;
+                    statusLabel.Text = PhasePrefix(3)
+                        + string.Format(Lang.T("status.vtPending"), got, got + vtPendingYara.Count);
+                }
                 return;
             }
             if (status == 200)
@@ -310,16 +316,20 @@ namespace AVUI
             int flagged = vtResolvedFlagged, total = vtResolvedClean + vtResolvedFlagged;
             vtResolvedClean = vtResolvedFlagged = 0;
             if (total == 0) return;
+            string summary;
             if (flagged == 0)
             {
+                summary = string.Format(Lang.T("tray.vtPendingAllClean"), total);
                 AppendLog(string.Format(Lang.T("log.vtPendingAllClean"), total), Theme.Good, "OK", false);
-                Notify(5000, string.Format(Lang.T("tray.vtPendingAllClean"), total), ToolTipIcon.Info);
+                Notify(5000, summary, ToolTipIcon.Info);
             }
             else
             {
+                summary = string.Format(Lang.T("tray.vtPendingDone"), flagged, total);
                 AppendLog(string.Format(Lang.T("log.vtPendingDone"), flagged, total), Theme.Warn, "WARN", false);
-                Notify(6000, string.Format(Lang.T("tray.vtPendingDone"), flagged, total), ToolTipIcon.Warning);
+                Notify(6000, summary, ToolTipIcon.Warning);
             }
+            if (!scanRunning) statusLabel.Text = summary; // phase 3 done — the status shows the outcome
         }
 
         // Shows the parked verdicts in their own threat dialog. Called right away

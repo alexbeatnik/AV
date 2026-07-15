@@ -249,6 +249,8 @@ namespace AVUI
 
             // Progress / ETA
             A("status.progress", "Scanned {0} of {1} ({2:0}%){3}, threats: {4}", "Скановано {0} із {1} ({2:0}%){3}, загроз: {4}");
+            A("phase.label", "Phase {0} of {1}: ", "Фаза {0} з {1}: ");
+            A("status.vtPending", "VirusTotal — verdicts received: {0} of {1}", "VirusTotal — вердиктів отримано: {0} із {1}");
             A("eta.remainingPrefix", ", remaining ", ", залишилось ");
             A("eta.estimating", ", estimating time…", ", оцінюю час…");
             A("time.hm", "{0:0}h {1:0}m", "{0:0} год {1:0} хв");
@@ -508,7 +510,9 @@ namespace AVUI
             A("section.yara", "YARA scan", "YARA-сканування");
             A("log.yaraScanning", "Checking the same files against YARA rules…\r\n", "Перевіряю ті самі файли YARA-правилами…\r\n");
             A("status.yaraScanning", "YARA scan…", "YARA-сканування…");
+            A("status.yaraProgress", "YARA rule check: {0:0}%{1}", "Перевірка YARA-правилами: {0:0}%{1}");
             A("log.hbYara", "YARA rules are checking the files… elapsed {1}\r\n", "YARA-правила перевіряють файли… минуло {1}\r\n");
+            A("log.hbYaraPct", "YARA rules are checking the files… {2:0}%, elapsed {1}\r\n", "YARA-правила перевіряють файли… {2:0}%, минуло {1}\r\n");
             A("log.yaraClean", "YARA: no additional detections ✔\r\n", "YARA: додаткових загроз не виявлено ✔\r\n");
             A("log.yaraFound", "YARA: suspicious files found: {0}\r\n", "YARA: знайдено підозрілих файлів: {0}\r\n");
             A("log.yaraExitCode", "yara64 finished with code {0} (some files may have been skipped).\r\n", "yara64 завершився з кодом {0} (частину файлів могло бути пропущено).\r\n");
