@@ -301,16 +301,7 @@ namespace AVUI
                 string[] sizePaths = safePaths.ToArray();
                 System.Threading.ThreadPool.QueueUserWorkItem(delegate
                 {
-                    long sum = 0;
-                    foreach (string sp in sizePaths)
-                    {
-                        try
-                        {
-                            long len = new FileInfo(sp).Length;
-                            if (!skipBig || len <= 209715200) sum += len; // --skip-larger files are never read
-                        }
-                        catch { }
-                    }
+                    long sum = YaraWorkloadBytes(sizePaths, skipBig);
                     System.Threading.Interlocked.Exchange(ref yaraTotalBytes, sum);
                 });
             }
@@ -350,10 +341,37 @@ namespace AVUI
             }
         }
 
+        // Bytes the YARA phase is expected to read: the size of every file on
+        // its list, minus files over the 200 MB cap when "skip large files" is
+        // on (--skip-larger means yara never opens them). Missing/unreadable
+        // files count as 0 — the estimate errs toward finishing early.
+        internal static long YaraWorkloadBytes(IEnumerable<string> paths, bool skipBig)
+        {
+            long sum = 0;
+            foreach (string p in paths)
+            {
+                try
+                {
+                    long len = new FileInfo(p).Length;
+                    if (!skipBig || len <= 209715200) sum += len;
+                }
+                catch { }
+            }
+            return sum;
+        }
+
+        // Progress fraction for the YARA phase. Rule compilation reads a few
+        // extra MB, so the value is capped below 100% — only the real process
+        // exit completes the phase. 0 while the total isn't known yet.
+        internal static double YaraProgressFraction(long readBytes, long totalBytes)
+        {
+            if (totalBytes <= 0 || readBytes <= 0) return 0;
+            if (readBytes > totalBytes) readBytes = totalBytes;
+            return Math.Min(0.99, (double)readBytes / totalBytes);
+        }
+
         // Drives the progress bar during the YARA phase: bytes the yara64
-        // process has read vs the list's total size. Rule compilation reads a
-        // few extra MB, so the fraction is capped below 100% — only the real
-        // process exit completes the phase.
+        // process has read vs the list's total size.
         void YaraProgressTick()
         {
             if (!yaraRunning) { yaraProgressTimer.Stop(); return; }
@@ -365,7 +383,7 @@ namespace AVUI
             catch { return; } // the process just exited under us
             long read = io.ReadTransferCount > long.MaxValue ? long.MaxValue : (long)io.ReadTransferCount;
             if (read > total) read = total;
-            double f = Math.Min(0.99, (double)read / total);
+            double f = YaraProgressFraction(read, total);
             yaraLastFraction = f;
             progress.SetFraction(f);
             shield.SetProgress(f);

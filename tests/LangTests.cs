@@ -122,6 +122,62 @@ namespace AVUI.Tests
             }
         }
 
+        public static void TestPhaseAndVtSummaryKeysExistInBothLanguages()
+        {
+            // v0.0.5: scan phase labels, YARA phase progress, VT verdict summary
+            string[] keys =
+            {
+                "phase.label", "status.vtPending", "status.yaraProgress", "log.hbYaraPct",
+                "log.vtPendingAllClean", "tray.vtPendingAllClean",
+                "log.vtPendingDone", "tray.vtPendingDone"
+            };
+            foreach (string key in keys)
+            {
+                string en, uk;
+                using (new LangScope(Lang.Language.English)) en = Lang.T(key);
+                using (new LangScope(Lang.Language.Ukrainian)) uk = Lang.T(key);
+                Assert.True(en != key, key + " exists in English");
+                Assert.True(uk != key && uk != en, key + " has its own Ukrainian translation");
+            }
+        }
+
+        public static void TestPhaseAndVtSummaryKeysAreFormattable()
+        {
+            // each key must keep the placeholders its call site formats with
+            foreach (Lang.Language lang in new Lang.Language[] { Lang.Language.English, Lang.Language.Ukrainian })
+                using (new LangScope(lang))
+                {
+                    string s = string.Format(Lang.T("phase.label"), 2, 3);
+                    Assert.True(s.Contains("2") && s.Contains("3"), "phase.label (" + lang + ") keeps {0} and {1}");
+                    s = string.Format(Lang.T("status.vtPending"), 4, 7);
+                    Assert.True(s.Contains("4") && s.Contains("7"), "status.vtPending (" + lang + ") keeps {0} and {1}");
+                    s = string.Format(Lang.T("status.yaraProgress"), 42.0, ", ~1m");
+                    Assert.True(s.Contains("42") && s.Contains("~1m"), "status.yaraProgress (" + lang + ") keeps {0} and {1}");
+                    s = string.Format(Lang.T("log.hbYaraPct"), DateTime.Now, "5s", 42.0);
+                    Assert.True(s.Contains("42") && s.Contains("5s"), "log.hbYaraPct (" + lang + ") keeps {1} and {2}");
+                    s = string.Format(Lang.T("tray.vtPendingAllClean"), 6);
+                    Assert.True(s.Contains("6"), "tray.vtPendingAllClean (" + lang + ") keeps {0}");
+                    s = string.Format(Lang.T("log.vtPendingAllClean"), 6);
+                    Assert.True(s.Contains("6"), "log.vtPendingAllClean (" + lang + ") keeps {0}");
+                    s = string.Format(Lang.T("tray.vtPendingDone"), 4, 7);
+                    Assert.True(s.Contains("4") && s.Contains("7"), "tray.vtPendingDone (" + lang + ") keeps {0} and {1}");
+                    s = string.Format(Lang.T("log.vtPendingDone"), 4, 7);
+                    Assert.True(s.Contains("4") && s.Contains("7"), "log.vtPendingDone (" + lang + ") keeps {0} and {1}");
+                }
+        }
+
+        public static void TestBrandButtonKeysExist()
+        {
+            // btn.ok / btn.virustotal are deliberately identical in both languages
+            // (OK and the VirusTotal brand name) — they only must exist in the table
+            foreach (Lang.Language lang in new Lang.Language[] { Lang.Language.English, Lang.Language.Ukrainian })
+                using (new LangScope(lang))
+                {
+                    Assert.Equal("OK", Lang.T("btn.ok"), "btn.ok (" + lang + ")");
+                    Assert.Equal("VIRUSTOTAL", Lang.T("btn.virustotal"), "btn.virustotal (" + lang + ")");
+                }
+        }
+
         public static void TestTimeFormatsAreFormattable()
         {
             // the FormatSpan patterns must be valid string.Format inputs in both languages

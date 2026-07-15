@@ -1,12 +1,72 @@
-// Tests for the YARA output parser, the ANSI scan-list filter, and the
-// VirusTotal response parser.
+// Tests for the YARA output parser, the ANSI scan-list filter, the
+// YARA-phase progress estimate, and the VirusTotal response parser.
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using AVUI;
 
 namespace AVUI.Tests
 {
+    // The YARA phase has no per-file output — progress is bytes read vs the
+    // list's total size (YaraWorkloadBytes / YaraProgressFraction).
+    public static class YaraProgressTests
+    {
+        public static void TestWorkloadSumsFileSizes()
+        {
+            using (var tmp = new TempDir())
+            {
+                File.WriteAllBytes(tmp.File("a.bin"), new byte[100]);
+                File.WriteAllBytes(tmp.File("b.bin"), new byte[250]);
+                long sum = MainForm.YaraWorkloadBytes(
+                    new string[] { tmp.File("a.bin"), tmp.File("b.bin") }, false);
+                Assert.Equal(350L, sum, "sum of both files");
+            }
+        }
+
+        public static void TestWorkloadSkipsMissingFiles()
+        {
+            using (var tmp = new TempDir())
+            {
+                File.WriteAllBytes(tmp.File("a.bin"), new byte[100]);
+                long sum = MainForm.YaraWorkloadBytes(
+                    new string[] { tmp.File("a.bin"), tmp.File("gone.bin") }, false);
+                Assert.Equal(100L, sum, "missing file counts as 0");
+            }
+        }
+
+        public static void TestWorkloadRespectsSkipBigCap()
+        {
+            // SetLength makes the boundary files instantly, without writing data
+            using (var tmp = new TempDir())
+            {
+                string atCap = tmp.File("at-cap.bin");
+                string over = tmp.File("over.bin");
+                using (var fs = new FileStream(atCap, FileMode.Create)) fs.SetLength(209715200);
+                using (var fs = new FileStream(over, FileMode.Create)) fs.SetLength(209715201);
+                Assert.Equal(209715200L, MainForm.YaraWorkloadBytes(new string[] { atCap, over }, true),
+                    "file at the cap is counted, one byte over is skipped");
+                Assert.Equal(419430401L, MainForm.YaraWorkloadBytes(new string[] { atCap, over }, false),
+                    "skipBig off counts everything");
+            }
+        }
+
+        public static void TestFractionBasics()
+        {
+            Assert.Equal(0.5, MainForm.YaraProgressFraction(50, 100), "half read");
+            Assert.Equal(0.0, MainForm.YaraProgressFraction(0, 100), "nothing read yet");
+            Assert.Equal(0.0, MainForm.YaraProgressFraction(50, 0), "total unknown");
+            Assert.Equal(0.0, MainForm.YaraProgressFraction(-1, 100), "negative read");
+        }
+
+        public static void TestFractionIsCappedBelowFull()
+        {
+            // rule compilation reads extra bytes — only process exit may show 100%
+            Assert.Equal(0.99, MainForm.YaraProgressFraction(100, 100), "full read caps at 99%");
+            Assert.Equal(0.99, MainForm.YaraProgressFraction(500, 100), "overshoot caps at 99%");
+        }
+    }
+
     public static class YaraParseTests
     {
         public static void TestMatchLineIsParsed()
