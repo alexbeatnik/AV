@@ -329,6 +329,10 @@ namespace AVUI
         void OnDebounceTick(object sender, EventArgs e)
         {
             if (scan.Running || updateRunning || !DbExists()) return; // try again on the next tick
+            // a modal dialog is open (threat dialog, a confirmation prompt): timers
+            // still tick inside modal loops, and starting a batch here would replace
+            // the scan session under the dialog — wait for a later tick instead
+            if (!NativeMethods.IsWindowEnabled(Handle)) return;
             var ready = new List<string>();
             var stillLocked = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (KeyValuePair<string, int> kvp in pendingFiles)

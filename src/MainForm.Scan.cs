@@ -1113,6 +1113,7 @@ namespace AVUI
             scan.Running = false;
             scan.Monitor = false;
             countGen++; // stop the background file counter
+            int initialTotal = scan.InitialTotal; // read before the reset below — the summary needs it
             scan.TotalToScan = 0;
             scan.InitialTotal = 0;
             StopClamd(); // the daemon lives only for the duration of the scan
@@ -1131,9 +1132,9 @@ namespace AVUI
                     AppendLog(string.Format(Lang.T("log.phaseTiming"),
                         FormatSpan(scan.YaraPhaseStart - scan.Started), FormatSpan(DateTime.Now - scan.YaraPhaseStart)),
                         Theme.Muted, null, false);
-                if (scan.Scanned < scan.InitialTotal)
+                if (scan.Scanned < initialTotal)
                 {
-                    int skipped = scan.InitialTotal - scan.Scanned;
+                    int skipped = initialTotal - scan.Scanned;
                     AppendLog(string.Format(Lang.T("log.skippedExplanation"), skipped), Theme.Muted, null, false);
                 }
             }
