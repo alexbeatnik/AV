@@ -19,7 +19,8 @@ detection under one portable dashboard:
 2. **YARA rules** — community heuristics from [YARA Forge](https://yarahq.github.io/)
    that catch malware families and fresh threats signatures miss;
 3. **VirusTotal** — suspicious files are checked by hash against 70+ engines,
-   so one false alarm from a heuristic rule doesn't scare you for nothing.
+   so a single false alarm from a heuristic rule doesn't turn into a
+   needless scare.
 
 The app itself is a single ~290 KB exe; the engines it orchestrates are
 fetched automatically on first run (the ~220 MB ClamAV package plus its

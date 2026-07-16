@@ -381,7 +381,9 @@ namespace AVUI
 
         void ScanFileBatch(List<string> files)
         {
+            bool heldPhase = vtPhaseRunning; // phase 3 this batch is about to take the UI from
             ResetScanState(Lang.T("desc.autoCheck"));
+            vtPhaseInterrupted = heldPhase;  // FinishScan restores the phase-3 visuals
             scan.Monitor = true;
             countGen++; // the total is known upfront, no background counting needed
             scan.TotalToScan = files.Count;

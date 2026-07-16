@@ -422,6 +422,7 @@ namespace AVUI
             scan.Desc = desc;
             scan.Started = DateTime.Now;
             vtPhaseRunning = false;    // a new scan takes over the UI from a held-open phase 3
+            vtPhaseInterrupted = false; // ScanFileBatch re-sets it right after when applicable
         }
 
         // Quick scan: risky file types in common infection points (downloads, desktop,
@@ -1175,6 +1176,18 @@ namespace AVUI
                         // verdicts) is still running. Keep the busy hero and drive the
                         // progress by verdicts received; VtNotifyPendingDone closes
                         // the scan and shows the completion toast
+                        vtPhaseRunning = true;
+                        SetHero(ShieldState.Busy, Lang.T("hero.vtWaitTitle"), Lang.T("hero.vtWaitSub"));
+                        double f = (double)got / (got + vtPendingYara.Count);
+                        progress.SetFraction(f);
+                        shield.SetProgress(f);
+                    }
+                    else if (vtPhaseInterrupted)
+                    {
+                        // this monitor batch had interrupted a finished scan's
+                        // held-open phase 3 — hand the busy hero and the
+                        // verdict-driven progress back instead of leaving the
+                        // hero green while verdicts are still outstanding
                         vtPhaseRunning = true;
                         SetHero(ShieldState.Busy, Lang.T("hero.vtWaitTitle"), Lang.T("hero.vtWaitSub"));
                         double f = (double)got / (got + vtPendingYara.Count);

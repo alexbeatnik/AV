@@ -329,6 +329,18 @@ namespace AVUI
         readonly List<LogEntry> logEntries = new List<LogEntry>();
         static readonly Color StampColor = Color.FromArgb(100, 106, 122); // dimmer than Muted
 
+        // A tray-resident session with a chatty monitor would otherwise grow the
+        // list (and the rendered RichTextBox) forever. Trimmed in chunks of 500
+        // so the full re-render runs once per ~500 appends, not on every line.
+        const int MaxLogEntries = 5000;
+
+        void TrimLogEntries()
+        {
+            if (logEntries.Count <= MaxLogEntries + 500) return;
+            logEntries.RemoveRange(0, logEntries.Count - MaxLogEntries);
+            RebuildLog();
+        }
+
         void AppendLog(string text, Color color)
         {
             AppendLog(text, color, null, false);
@@ -344,6 +356,7 @@ namespace AVUI
             e.Detail = detail;
             logEntries.Add(e);
             if (!e.Detail || chkLogDetails.Checked) RenderEntry(e);
+            TrimLogEntries();
         }
 
         // Stage banner ("════ QUICK SCAN ════") — makes scan phases easy to spot
@@ -356,6 +369,7 @@ namespace AVUI
             e.Section = true;
             logEntries.Add(e);
             RenderEntry(e);
+            TrimLogEntries();
         }
 
         void ClearLog()
