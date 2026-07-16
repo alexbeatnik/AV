@@ -46,6 +46,12 @@ namespace AVUI
             ShowPage(0);
             EnsureAutostartFirstRun();
 
+            // a crashed earlier run may have left scan temp files (RAM dumps up
+            // to 128 MB) in %TEMP% — sweep them in the background; this run's own
+            // files can't exist yet, and their GUID names are unique anyway
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            { SweepStaleTempFiles(Path.GetTempPath()); });
+
             // The VirusTotal cell in the engines strip shows an "offline" state —
             // refresh it the moment the network drops or comes back, not only on
             // the next page switch. The event fires on a worker thread.
@@ -1569,7 +1575,8 @@ namespace AVUI
             StopWatchers();
             StopCurrent();
             KillClamdNow(); // synchronous: the async StopClamd worker wouldn't survive process exit
-            CleanupMemDumps(); // remove any RAM dumps from an in-flight scan
+            CleanupMemDumps();   // remove any RAM dumps from an in-flight scan
+            CleanupBatchLists(); // and its --file-list temp files
             tray.Visible = false;
         }
 

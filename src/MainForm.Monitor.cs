@@ -413,5 +413,24 @@ namespace AVUI
             batchListPaths.Clear();
         }
 
+        // Sweeps leftovers of a crashed/killed earlier run out of %TEMP%: the
+        // --file-list files (av-list/av-batch/av-yara, kilobytes) and above all
+        // av-mem-* RAM-dump folders, which can hold up to 128 MB. Normal exits
+        // clean up after themselves — this only matters after a hard crash.
+        // Runs once at startup (before any scan can have created new files);
+        // the GUID-suffixed patterns can't match anything that isn't ours.
+        internal static void SweepStaleTempFiles(string tempDir)
+        {
+            try
+            {
+                foreach (string pattern in new string[] { "av-list-*.txt", "av-batch-*.txt", "av-yara-*.txt" })
+                    foreach (string f in Directory.GetFiles(tempDir, pattern))
+                        try { File.Delete(f); } catch { }
+                foreach (string d in Directory.GetDirectories(tempDir, "av-mem-*"))
+                    try { Directory.Delete(d, true); } catch { }
+            }
+            catch { } // temp dir unreadable — nothing to sweep
+        }
+
     }
 }

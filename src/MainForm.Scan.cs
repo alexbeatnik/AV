@@ -949,16 +949,28 @@ namespace AVUI
             p.StartInfo = psi;
             p.EnableRaisingEvents = true;
             p.SynchronizingObject = this; // events and counters run on the UI thread
-            p.OutputDataReceived += delegate(object s, DataReceivedEventArgs e) { OnScanLine(e.Data); };
-            p.ErrorDataReceived += delegate(object s, DataReceivedEventArgs e) { OnScanLine(e.Data); };
-            p.Exited += delegate
+            // same three-signal finish as StartProcess: Exited alone can overtake
+            // the last output lines, and this child's exit may close the whole
+            // ClamAV phase (OnScanChildDone → OnScanExit) — see StartProcess
+            bool exited = false, outEof = false, errEof = false;
+            Action tryFinish = delegate
             {
+                if (!exited || !outEof || !errEof) return;
                 int code = 2;
                 try { code = p.ExitCode; } catch { }
                 scanProcs.Remove(p);
                 try { p.Dispose(); } catch { }
                 OnScanChildDone(code);
             };
+            p.OutputDataReceived += delegate(object s, DataReceivedEventArgs e)
+            {
+                if (e.Data == null) { outEof = true; tryFinish(); } else OnScanLine(e.Data);
+            };
+            p.ErrorDataReceived += delegate(object s, DataReceivedEventArgs e)
+            {
+                if (e.Data == null) { errEof = true; tryFinish(); } else OnScanLine(e.Data);
+            };
+            p.Exited += delegate { exited = true; tryFinish(); };
             try
             {
                 p.Start();

@@ -225,16 +225,31 @@ namespace AVUI
             p.StartInfo = psi;
             p.EnableRaisingEvents = true;
             p.SynchronizingObject = this; // events fire on the UI thread
-            p.OutputDataReceived += delegate(object s, DataReceivedEventArgs e) { onLine(e.Data); };
-            p.ErrorDataReceived += delegate(object s, DataReceivedEventArgs e) { onLine(e.Data); };
-            p.Exited += delegate
+            // The process is finished only when all three signals are in: Exited
+            // plus EOF on stdout AND stderr (the null line is guaranteed to be a
+            // stream's last event). Exited alone can overtake the tail of the
+            // output — finalizing there could run FinishScan before the last
+            // "FOUND"/"OK" lines were counted, dropping a threat from the dialog.
+            // All three callbacks arrive on the UI thread, so plain bools suffice.
+            bool exited = false, outEof = false, errEof = false;
+            Action tryFinish = delegate
             {
+                if (!exited || !outEof || !errEof) return;
                 int code = 0;
                 try { code = p.ExitCode; } catch { }
                 currentProc = null;
                 onExit(code);
                 p.Dispose();
             };
+            p.OutputDataReceived += delegate(object s, DataReceivedEventArgs e)
+            {
+                if (e.Data == null) { outEof = true; tryFinish(); } else onLine(e.Data);
+            };
+            p.ErrorDataReceived += delegate(object s, DataReceivedEventArgs e)
+            {
+                if (e.Data == null) { errEof = true; tryFinish(); } else onLine(e.Data);
+            };
+            p.Exited += delegate { exited = true; tryFinish(); };
 
             try
             {
