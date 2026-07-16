@@ -203,6 +203,26 @@ per-user to `%LocalAppData%\Programs\AV` (no admin rights, shortcuts, "Apps"
 entry) or stay portable. ClamAV (~220 MB with the database) and the YARA
 engine + rules (~15 MB) are downloaded automatically.
 
+### "Windows protected your PC" warning
+
+Downloading a release may trigger a SmartScreen / browser warning: the
+executable is not code-signed, and every new release is an unknown file
+with zero reputation for Windows. This is a reputation notice, not a
+detection — you can verify the download yourself: each release is built from
+this repository by the public [Release workflow](.github/workflows/release.yml),
+and the file is clean on VirusTotal. To run it anyway: **More info → Run
+anyway**, or clear the "downloaded from the internet" mark in PowerShell:
+
+```powershell
+Unblock-File -Path "C:\path\to\AV.exe"
+```
+
+On Windows 11 with **Smart App Control** enabled the app may still be
+blocked — Smart App Control ignores the unblock mark and allows only signed
+or well-known binaries. It can only be switched off entirely: Windows
+Security → App & browser control → Smart App Control (this is one-way; a
+Windows reset is needed to re-enable it).
+
 ## Structure
 
 ```

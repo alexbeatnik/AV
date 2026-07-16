@@ -110,7 +110,10 @@ Follow the matching rule whenever a change touches one of these areas:
 - **`testing`** — testable logic is exposed as `internal static` members of
   `MainForm` and covered in `tests/*.cs` (zero-dependency reflection runner).
 - **`release`** — the version lives in `src/AssemblyInfo.cs`; merging a bump
-  to `main` publishes the GitHub Release the app self-updates from.
+  to `main` publishes the GitHub Release the app self-updates from. Releases
+  are deliberately unsigned (the maintainer declined the code-signing route);
+  the README explains the resulting SmartScreen warning to users — don't
+  re-propose signing.
 - **`verify`** — launching the built exe for a manual check: single-instance
   tray app, both languages, and the Defender-eats-EICAR gotcha.
 - **`screenshots`** — the four README screenshots are retaken by the
