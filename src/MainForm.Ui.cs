@@ -231,6 +231,45 @@ namespace AVUI
                     ShowInTaskbar = false; // hide to tray
             };
             FormClosing += OnFormClosing;
+
+            // Drag & drop: dropping files/folders anywhere on the window scans
+            // them. Drag events don't bubble in WinForms, so every control gets
+            // wired — after BuildUi, when the whole tree exists.
+            EnableDropScan(this);
+        }
+
+        // Hooks the scan drop handlers onto a control and all its children.
+        // Text inputs are skipped: they have their own drag/selection behavior
+        // (and dropping a file into the search box shouldn't start a scan).
+        void EnableDropScan(Control root)
+        {
+            if (root is TextBoxBase) return; // TextBox, RichTextBox (the log)
+            root.AllowDrop = true;
+            root.DragEnter += OnScanDragEnter;
+            root.DragDrop += OnScanDragDrop;
+            foreach (Control c in root.Controls) EnableDropScan(c);
+        }
+
+        void OnScanDragEnter(object sender, DragEventArgs e)
+        {
+            e.Effect = !scan.Running && !updateRunning && clamDir != null && DbExists()
+                && e.Data.GetDataPresent(DataFormats.FileDrop)
+                ? DragDropEffects.Copy : DragDropEffects.None;
+        }
+
+        void OnScanDragDrop(object sender, DragEventArgs e)
+        {
+            string[] dropped = e.Data.GetData(DataFormats.FileDrop) as string[];
+            if (dropped == null) return;
+            if (scan.Running || updateRunning || clamDir == null || !DbExists()) return;
+            var targets = new List<string>();
+            foreach (string p in dropped)
+                if (File.Exists(p) || Directory.Exists(p)) AddPathOnce(targets, p);
+            if (targets.Count == 0) return;
+            string desc = targets.Count == 1
+                ? targets[0]
+                : string.Format(Lang.T("desc.dropScan"), targets.Count);
+            RunClamscan(targets, desc);
         }
 
         Panel BuildDashboardPage()
@@ -256,6 +295,7 @@ namespace AVUI
             dashQuick = MakeCardButton(Lang.T("btn.quickScan"), Theme.Accent, Theme.AccentHot, Theme.Text, Ico.Radar);
             dashQuick.Dock = DockStyle.Fill;
             dashQuick.Font = new Font("Segoe UI Semibold", 11f);
+            dashQuick.SubText = Lang.T("btn.quickScanSub"); // the big tile had room to explain itself
             dashQuick.Click += delegate { RunQuickScan(); };
             dashStop = MakeCardButton(Lang.T("btn.stop"), Theme.Danger, Theme.DangerHot, Theme.Text, Ico.StopIcon);
             dashStop.Dock = DockStyle.Fill;
@@ -387,6 +427,9 @@ namespace AVUI
             lastActivityLabel = new Label();
             lastActivityLabel.Dock = DockStyle.Fill;
             lastActivityLabel.AutoEllipsis = true;
+            // vertical padding leaves room for exactly one text line, so a long
+            // entry ellipsizes instead of wrapping mid-value ("3m" / "26s")
+            lastActivityLabel.Padding = new Padding(0, 13, 0, 13);
             lastActivityLabel.Font = new Font("Consolas", 9f);
             lastActivityLabel.ForeColor = Theme.Muted;
             lastActivityLabel.BackColor = Theme.Card;
@@ -1257,9 +1300,23 @@ namespace AVUI
                     for (int i = lines.Length - 1; i >= 0; i--)
                         if (lines[i].Trim().Length > 0) { last = lines[i]; break; }
                 }
-                lastActivityLabel.Text = last ?? Lang.T("history.empty");
+                lastActivityLabel.Text = last != null ? FormatHistoryLine(last) : Lang.T("history.empty");
             }
             catch { }
+        }
+
+        // scans.log keeps ISO timestamps (sortable, locale-neutral) — but the
+        // dashboard shows dd.MM.yyyy everywhere else, so the displayed copy of
+        // the line is reformatted; lines without the expected stamp pass through.
+        internal static string FormatHistoryLine(string line)
+        {
+            DateTime dt;
+            if (line != null && line.Length >= 16
+                && DateTime.TryParseExact(line.Substring(0, 16), "yyyy-MM-dd HH:mm",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out dt))
+                return dt.ToString("dd.MM.yyyy HH:mm") + line.Substring(16);
+            return line;
         }
 
         void SetScanEnabled(bool on)
@@ -1468,6 +1525,7 @@ namespace AVUI
             cardSettingsPanel.HeaderText = Lang.T("card.settings"); cardSettingsPanel.Invalidate();
 
             dashQuick.Text = Lang.T("btn.quickScan");
+            dashQuick.SubText = Lang.T("btn.quickScanSub");
             dashScanFile.Text = Lang.T("btn.scanFileDash");
             dashScanFile.SubText = Lang.T("btn.scanFileSub");
             dashScanFolder.Text = Lang.T("btn.scanFolderDash");

@@ -43,14 +43,21 @@ namespace AVUI
 
         void RunClamscan(string target)
         {
+            RunClamscan(new List<string> { target }, target);
+        }
+
+        // Shared manual-scan entry: one picked file/folder, or several targets at
+        // once (files dropped onto the window) — desc names them for the log/history
+        void RunClamscan(List<string> targets, string desc)
+        {
             if (scan.Running || updateRunning) return;
-            ResetScanState(target);
+            ResetScanState(desc);
             ClearLog();
             AppendSection(Lang.T("section.scan"));
-            AppendLog(string.Format(Lang.T("log.scanning"), target), Theme.Text, "SCAN", false);
+            AppendLog(string.Format(Lang.T("log.scanning"), desc), Theme.Text, "SCAN", false);
             AppendLog(Lang.T("log.buildingList"), Theme.Muted);
             SetBusy(true, Lang.T("status.scanning"));
-            BeginListScan(new List<string> { target }, false);
+            BeginListScan(targets, false);
         }
 
         string MoveArg()

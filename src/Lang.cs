@@ -77,6 +77,7 @@ namespace AVUI
 
             // Buttons
             A("btn.quickScan", "QUICK SCAN", "ШВИДКИЙ СКАН");
+            A("btn.quickScanSub", "Common infection points — takes minutes", "Типові місця зараження — лічені хвилини");
             A("btn.scanFileDash", "SCAN FILE", "СКАНУВАТИ ФАЙЛ");
             A("btn.scanFileSub", "Choose a single file", "Перевірити один файл");
             A("btn.scanFolderDash", "SCAN FOLDER", "СКАНУВАТИ ПАПКУ");
@@ -250,6 +251,7 @@ namespace AVUI
             A("dlg.pickFolder", "Choose a folder to scan", "Вибери папку для сканування");
             A("dlg.pickFile", "Choose a file to scan", "Вибери файл для сканування");
             A("log.scanning", "Scanning: {0}\r\n", "Сканую: {0}\r\n");
+            A("desc.dropScan", "dropped items ({0})", "перетягнуті об'єкти ({0})"); // drag & drop onto the window
             A("log.buildingList", "Building file list…\r\n", "Складаю список файлів…\r\n");
             A("status.scanning", "Scanning…", "Сканування…");
             A("log.listCreateFailedInline", "Could not create the file list ({0}), passing files on the command line.\r\n", "Не вдалося створити список файлів ({0}), передаю в рядку.\r\n");
