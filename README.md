@@ -9,7 +9,7 @@
 [![Framework](https://img.shields.io/badge/.NET_Framework-4.8-purple.svg)](https://dotnet.microsoft.com/download/dotnet-framework/net48)
 
 A lightweight **multi-engine antivirus for Windows** — three layers of
-detection in one ~280 KB portable exe:
+detection in one ~290 KB portable exe:
 
 1. **ClamAV** — the classic signature engine (official, unmodified binaries);
 2. **YARA rules** — community heuristics from [YARA Forge](https://yarahq.github.io/)
@@ -63,7 +63,8 @@ reset is needed to re-enable it).
 
 - Scan a file, a folder, or the **whole PC**; **Scan RAM** (live process
   memory — catches injected code masked on disk); **quick scan** of common
-  infection points; scheduled quick scans (daily/weekly)
+  infection points; scheduled quick scans (daily/weekly); or just
+  **drag & drop** files onto the window
 - **Auto-check of new files**: Downloads, Desktop, Program Files, Temp,
   AppData… are monitored, and new files are scanned by all engines
   automatically

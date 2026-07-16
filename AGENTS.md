@@ -1,7 +1,7 @@
 # AGENTS.md — guide for AI coding agents (and new contributors)
 
 A WinForms multi-engine antivirus for Windows: ClamAV + YARA rules +
-VirusTotal hash checks. One ~280 KB portable exe,
+VirusTotal hash checks. One ~290 KB portable exe,
 **zero dependencies, zero toolchains**: it builds with the `csc.exe` compiler
 that ships inside Windows (.NET Framework 4.8). Keep it that way.
 Licensed under Apache 2.0 (`LICENSE`).

@@ -23,7 +23,7 @@ exactly these two scripts on every PR. Releases are published by
 
 ## Resource & performance profile
 
-* **Executable size:** ~280 KB (single portable EXE, zero dependencies)
+* **Executable size:** ~290 KB (single portable EXE, zero dependencies)
 * **Downloads footprint:** ClamAV binary assets and database (~220 MB total)
   + YARA core ruleset (~15 MB total)
 * **Typical memory profile:**
