@@ -1196,7 +1196,12 @@ namespace AVUI
             }
             else
             {
-                statusLabel.Text = string.Format(Lang.T("status.scanInterrupted"), exitCode);
+                // the cancel flag is set only by StopCurrent and cleared when the
+                // next scan starts — true here means the user pressed Stop, so
+                // don't present their own action as an error
+                statusLabel.Text = cancelScanListing
+                    ? Lang.T("status.scanCancelled")
+                    : string.Format(Lang.T("status.scanInterrupted"), exitCode);
                 RefreshDbStatus();
             }
             CleanupMemDumps(); // after the (modal) threat dialog, so found dumps stayed listable

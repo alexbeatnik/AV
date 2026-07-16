@@ -330,6 +330,17 @@ namespace AVUI
             yaraRunning = true;
             // yara64 outputs in UTF-8 (handled by standard StartProcess overload)
             StartProcess(YaraExe, args.ToString(), OnYaraLine, OnYaraExit);
+            if (currentProc == null)
+            {
+                // yara64 failed to launch (deleted/blocked since the YaraReady
+                // check): OnYaraExit will never fire, so close the scan with the
+                // ClamAV result instead of leaving it half-open — a stale
+                // yaraRunning would mislabel the next scan's heartbeat, and the
+                // RAM dumps/list files would never be cleaned up
+                yaraRunning = false;
+                FinishScan(clamCode);
+                return;
+            }
             if (!monitorScan)
             {
                 // the bar restarts from 0 for this phase (the ClamAV part just
@@ -444,6 +455,16 @@ namespace AVUI
         {
             yaraRunning = false;
             if (yaraProgressTimer != null) yaraProgressTimer.Stop();
+            // Stop pressed mid-phase (StopCurrent set the cancel flag and killed
+            // yara64): the match list is partial — acting on it would quarantine
+            // or hold back files from a scan the user abandoned. Finish as
+            // interrupted, the same way a stop during the ClamAV phase does.
+            if (cancelScanListing)
+            {
+                AppendLog(Lang.T("log.cancelled"), Theme.Warn);
+                FinishScan(2);
+                return;
+            }
             int extra = 0, pending = 0;
             foreach (KeyValuePair<string, string> kv in yaraMatches)
             {
