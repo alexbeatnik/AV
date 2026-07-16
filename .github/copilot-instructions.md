@@ -53,6 +53,14 @@ must not be "modernized" in suggestions or review comments:
   `BeginInvoke` wrapped in `try/catch` (the form may already be closed);
   child `Process` objects set `SynchronizingObject = this`; no UI-thread
   blocking waits on child processes.
+- **Per-scan state**: anything that lives and dies with one scan (a counter,
+  a phase flag, cancel-related state) belongs in `src/ScanSession.cs`, not in
+  a new `MainForm` field — `ResetScanState` replaces the session wholesale,
+  which is what guarantees no state leaks between scans. Background workers
+  must capture the session they were started for (`var ses = scan;`) and
+  check *its* `Cancel` flag instead of reading the live `scan` field. State
+  that must outlive the scan (e.g. `vtPendingYara`, cumulative stats) stays
+  on `MainForm`.
 - **Scan limits**: `ScanLimitsArg(bool skipBig)` (clamscan) and
   `WriteClamdConf()` (clamd.conf) must stay in sync. The file/scan-size cap is
   user-controlled by the "skip large files" toggle (`chkSkipBig`, `skipbig=`,

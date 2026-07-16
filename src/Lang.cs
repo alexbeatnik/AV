@@ -35,6 +35,17 @@ namespace AVUI
             return key;
         }
 
+        // Test seams: table-wide property tests iterate every key instead of
+        // hand-picked lists (tests/LangTests.cs). Raw returns null for a missing
+        // entry — unlike T(), which falls back to English and then to the key.
+        internal static IEnumerable<string> AllKeys() { return En.Keys; }
+        internal static int CountFor(Language lang) { return (lang == Language.Ukrainian ? Uk : En).Count; }
+        internal static string Raw(Language lang, string key)
+        {
+            string v;
+            return (lang == Language.Ukrainian ? Uk : En).TryGetValue(key, out v) ? v : null;
+        }
+
         static void A(string key, string en, string uk) { En[key] = en; Uk[key] = uk; }
 
         static Lang()
@@ -66,6 +77,7 @@ namespace AVUI
 
             // Buttons
             A("btn.quickScan", "QUICK SCAN", "ШВИДКИЙ СКАН");
+            A("btn.quickScanSub", "Common infection points — takes minutes", "Типові місця зараження — лічені хвилини");
             A("btn.scanFileDash", "SCAN FILE", "СКАНУВАТИ ФАЙЛ");
             A("btn.scanFileSub", "Choose a single file", "Перевірити один файл");
             A("btn.scanFolderDash", "SCAN FOLDER", "СКАНУВАТИ ПАПКУ");
@@ -239,6 +251,7 @@ namespace AVUI
             A("dlg.pickFolder", "Choose a folder to scan", "Вибери папку для сканування");
             A("dlg.pickFile", "Choose a file to scan", "Вибери файл для сканування");
             A("log.scanning", "Scanning: {0}\r\n", "Сканую: {0}\r\n");
+            A("desc.dropScan", "dropped items ({0})", "перетягнуті об'єкти ({0})"); // drag & drop onto the window
             A("log.buildingList", "Building file list…\r\n", "Складаю список файлів…\r\n");
             A("status.scanning", "Scanning…", "Сканування…");
             A("log.listCreateFailedInline", "Could not create the file list ({0}), passing files on the command line.\r\n", "Не вдалося створити список файлів ({0}), передаю в рядку.\r\n");

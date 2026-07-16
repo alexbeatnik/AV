@@ -1,7 +1,7 @@
 # AGENTS.md — guide for AI coding agents (and new contributors)
 
 A WinForms multi-engine antivirus for Windows: ClamAV + YARA rules +
-VirusTotal hash checks. One ~280 KB portable exe,
+VirusTotal hash checks. One ~290 KB portable exe,
 **zero dependencies, zero toolchains**: it builds with the `csc.exe` compiler
 that ships inside Windows (.NET Framework 4.8). Keep it that way.
 Licensed under Apache 2.0 (`LICENSE`).
@@ -41,7 +41,8 @@ One `MainForm` class split into partial files by concern:
 
 | File | Concern |
 |------|---------|
-| `src/MainForm.cs` | state fields, `Main()`, process plumbing, log rendering, autostart |
+| `src/MainForm.cs` | app-lifetime state fields, `Main()`, process plumbing, log rendering, autostart |
+| `src/ScanSession.cs` | per-scan state (counters, phases, cancel flag) — see below |
 | `src/MainForm.Ui.cs` | all UI construction, pages, dialogs, `ApplyLanguage()` |
 | `src/MainForm.Scan.cs` | scans, progress/ETA, clamd engine, scheduled quick scan |
 | `src/MainForm.MemScan.cs` | quick-scan process-memory dumping (RAM regions → temp files → clamd) |
@@ -63,6 +64,16 @@ not exits) and no visible caption text, and the settings card uses absolute
 positions. All state lives on the UI thread — background work goes through `ThreadPool`/threads
 and marshals back with `BeginInvoke` (wrapped in `try/catch` for the
 form-already-closed case). Child processes set `SynchronizingObject = this`.
+
+Per-scan state (counters, phase flags, the cancel flag, the YARA phase bookkeeping)
+lives in a `ScanSession` object (`MainForm.scan`), replaced wholesale by
+`ResetScanState` — so nothing can leak from one scan into the next — and kept
+referenced after the scan ends for late readers (threat dialog, scans.log, VT
+verdicts). Background workers (the listing thread, the clamd starter, the YARA
+workload sizer) capture the session they were started for and honor *its* `Cancel`
+flag; a superseded scan's late writes land in its own dead object. State that must
+outlive a scan stays on `MainForm`: `vtPendingYara`, `vtPhaseRunning`, cumulative
+statistics, the clamd daemon, `memDumpPaths` (cleaned after the modal threat dialog).
 
 Quick scan, full scan, and the dedicated **Scan RAM** dashboard button all dump
 running processes' executable RAM (`MainForm.MemScan.cs`): best-effort
@@ -110,7 +121,10 @@ Follow the matching rule whenever a change touches one of these areas:
 - **`testing`** — testable logic is exposed as `internal static` members of
   `MainForm` and covered in `tests/*.cs` (zero-dependency reflection runner).
 - **`release`** — the version lives in `src/AssemblyInfo.cs`; merging a bump
-  to `main` publishes the GitHub Release the app self-updates from.
+  to `main` publishes the GitHub Release the app self-updates from. Releases
+  are deliberately unsigned (the maintainer declined the code-signing route);
+  the README explains the resulting SmartScreen warning to users — don't
+  re-propose signing.
 - **`verify`** — launching the built exe for a manual check: single-instance
   tray app, both languages, and the Defender-eats-EICAR gotcha.
 - **`screenshots`** — the four README screenshots are retaken by the

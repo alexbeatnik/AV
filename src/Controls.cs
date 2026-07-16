@@ -100,12 +100,21 @@ namespace AVUI
                 }
                 else
                 {
-                    // label on one line + a muted caption below (dashboard action tiles)
-                    TextRenderer.DrawText(g, Text, Font, new Rectangle(4, textTop - 2, Width - 8, 17), fg,
+                    // label on one line + a muted caption below (dashboard action
+                    // tiles); the label row follows the tile's own font so the
+                    // 11pt hero tile doesn't clip its glyphs against the caption
+                    int labelH = Font.Height + 2;
+                    TextRenderer.DrawText(g, Text, Font, new Rectangle(4, textTop - 2, Width - 8, labelH), fg,
                         TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.EndEllipsis | NoPre);
+                    // caption color follows the painted background: muted gray on
+                    // dark cards, translucent white on bright accent tiles (QUICK
+                    // SCAN) where gray sinks into the blue
+                    Color subFg = !Enabled ? Color.FromArgb(100, 106, 120)
+                        : c.GetBrightness() > 0.35f ? Color.FromArgb(220, 255, 255, 255)
+                        : Theme.Muted;
                     using (var sf = new Font("Segoe UI", 7.75f))
-                        TextRenderer.DrawText(g, SubText, sf, new Rectangle(4, textTop + 16, Width - 8, 15),
-                            Enabled ? Theme.Muted : Color.FromArgb(100, 106, 120),
+                        TextRenderer.DrawText(g, SubText, sf, new Rectangle(4, textTop - 2 + labelH, Width - 8, 15),
+                            subFg,
                             TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.EndEllipsis | NoPre);
                 }
             }

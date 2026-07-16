@@ -138,13 +138,19 @@ namespace AVUI
             statStrip.Values = new string[]
             {
                 lastScanInfo.Length == 0 ? Lang.T("stats.neverScanned") : lastScanInfo,
-                totalScans.ToString(), totalFilesScanned.ToString(),
-                totalFound.ToString(), q.ToString()
+                // "#,0": thousands separators, same as the signature count in the
+                // engines strip right below — "77161" next to "3,642,611" jarred
+                totalScans.ToString("#,0"), totalFilesScanned.ToString("#,0"),
+                totalFound.ToString("#,0"), q.ToString("#,0")
             };
             statStrip.ValueColors = new Color[]
             {
                 Color.Empty, Color.Empty, Color.Empty,
-                totalFound > 0 ? Theme.Danger : Color.Empty,
+                // THREATS is a lifetime total of already-handled detections — a
+                // permanently red digit next to the green "Protected" hero sent a
+                // mixed signal. Red/yellow is reserved for what needs action NOW:
+                // the quarantine count below (real files awaiting a decision).
+                Color.Empty,
                 q > 0 ? Theme.Warn : Color.Empty
             };
             statStrip.Invalidate();
@@ -231,10 +237,10 @@ namespace AVUI
         }
 
         // Asks the user what to do with each detected threat
-        void ShowThreatDialog() { ShowThreatDialog(foundFiles); }
+        void ShowThreatDialog() { ShowThreatDialog(scan.FoundFiles); }
 
         // threats: {path, threat name, [scan description]} — the optional third
-        // element overrides currentScanDesc for the quarantine record, so late
+        // element overrides scan.Desc for the quarantine record, so late
         // VirusTotal verdicts keep the scan they actually came from
         void ShowThreatDialog(List<string[]> threats)
         {
@@ -299,8 +305,8 @@ namespace AVUI
                     foreach (var it in picked())
                     {
                         string[] meta = (string[])it.Tag;
-                        string desc = meta.Length > 2 ? meta[2] : currentScanDesc;
-                        if (QuarantineFile(meta[0], meta[1], desc)) { movedCount++; list.Items.Remove(it); }
+                        string desc = meta.Length > 2 ? meta[2] : scan.Desc;
+                        if (QuarantineFile(meta[0], meta[1], desc)) { scan.Moved++; list.Items.Remove(it); }
                     }
                     SaveSettings();
                     UpdateStatsUi();

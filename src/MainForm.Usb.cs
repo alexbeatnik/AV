@@ -63,7 +63,7 @@ namespace AVUI
                 if (d.DriveType != DriveType.Removable || !d.IsReady) return;
             }
             catch { return; }
-            if (scanRunning || updateRunning)
+            if (scan.Running || updateRunning)
             {
                 Notify(6000, string.Format(Lang.T("tray.usbBusy"), root), ToolTipIcon.Info);
                 return;

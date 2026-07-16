@@ -68,26 +68,51 @@ namespace AVUI
             AppendLog(string.Format(Lang.T("log.clamAVPath"), clamDir), Theme.Muted);
         }
 
+        // Reads "clamscan --version" on a worker thread: mapping the exe can be
+        // slow (cold disk, another AV inspecting it) and the bounded waits used
+        // to block the UI thread for up to ~6 s — at startup that delayed the
+        // window, after a DB update it froze it. The UI shows "—" until the
+        // answer lands and the engine cells refresh.
         void FetchClamVersion()
         {
-            try
+            string dir = clamDir;
+            if (dir == null) return;
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
             {
-                var psi = new ProcessStartInfo(Path.Combine(clamDir, "clamscan.exe"), "--version");
-                psi.UseShellExecute = false;
-                psi.CreateNoWindow = true;
-                psi.RedirectStandardOutput = true;
-                using (var p = Process.Start(psi))
+                string v = null;
+                try
                 {
-                    // ReadLine() would block the UI forever if the exe is broken and
-                    // prints nothing — bounded wait instead
-                    var read = p.StandardOutput.ReadLineAsync(); // "ClamAV 1.5.3/27710/..."
-                    string line = read.Wait(3000) ? read.Result : null;
-                    p.WaitForExit(3000);
-                    if (!string.IsNullOrEmpty(line))
-                        clamVersion = line.Replace("ClamAV ", "").Split('/')[0];
+                    var psi = new ProcessStartInfo(Path.Combine(dir, "clamscan.exe"), "--version");
+                    psi.UseShellExecute = false;
+                    psi.CreateNoWindow = true;
+                    psi.RedirectStandardOutput = true;
+                    using (var p = Process.Start(psi))
+                    {
+                        // ReadLine() would hang forever if the exe is broken and
+                        // prints nothing — bounded wait instead
+                        var read = p.StandardOutput.ReadLineAsync(); // "ClamAV 1.5.3/27710/..."
+                        string line = read.Wait(3000) ? read.Result : null;
+                        p.WaitForExit(3000);
+                        if (!string.IsNullOrEmpty(line))
+                            v = line.Replace("ClamAV ", "").Split('/')[0];
+                    }
                 }
-            }
-            catch { }
+                catch { }
+                if (v == null) return;
+                string fv = v;
+                try
+                {
+                    BeginInvoke((Action)delegate
+                    {
+                        clamVersion = fv;
+                        UpdateStatsUi();         // the ClamAV cell in the engines strip
+                        RefreshSettingsStatus(); // the STATUS block on the settings page
+                    });
+                }
+                // the form handle isn't created yet (worker beat the startup) or is
+                // already closed — keep the value; the next refresh will show it
+                catch { clamVersion = fv; }
+            });
         }
 
         void EnsureFreshclamConf()
@@ -183,7 +208,7 @@ namespace AVUI
                         string.Format(Lang.T("hero.dbStaleSub"), DbDateString(newest)));
                 else
                     SetHero(ShieldState.Ok, Lang.T("hero.protected"), string.Format(Lang.T("hero.dbFrom"), DbDateString(newest)));
-                SetScanEnabled(!scanRunning && !updateRunning);
+                SetScanEnabled(!scan.Running && !updateRunning);
             }
             else
             {

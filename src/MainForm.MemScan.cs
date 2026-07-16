@@ -61,12 +61,12 @@ namespace AVUI
         const long MemMaxTotalBytes = 128L * 1024 * 1024;   // overall cap so a scan never fills the disk or dominates its time
 
         // Walks every accessible process' address space and dumps the qualifying
-        // regions to memDumpDir. Runs on the background listing thread; stops on the
-        // cancel flag OR when a newer scan superseded this one (gen != countGen) —
-        // the flag alone isn't enough, because the next BeginListScan resets it to
-        // false, which would let a stale dump thread keep writing and race the new
-        // scan over the shared memDumpDir/memDumpPaths. Returns the dump file paths.
-        List<string> DumpRunningProcessMemory(int gen, out int procCount, out int regionCount, out long totalBytes)
+        // regions to memDumpDir. Runs on the background listing thread; stops on
+        // its session's cancel flag OR when a newer scan superseded this one
+        // (gen != countGen) — the gen guard protects the shared
+        // memDumpDir/memDumpPaths from a stale dump thread racing the new scan.
+        // Returns the dump file paths.
+        List<string> DumpRunningProcessMemory(ScanSession ses, int gen, out int procCount, out int regionCount, out long totalBytes)
         {
             procCount = 0; regionCount = 0; totalBytes = 0;
             var files = new List<string>();
@@ -84,7 +84,7 @@ namespace AVUI
             {
                 // when stopping, keep iterating (skipping the work) so every Process
                 // in the snapshot still gets disposed instead of leaking handles
-                bool stop = cancelScanListing || gen != countGen || totalBytes >= MemMaxTotalBytes;
+                bool stop = ses.Cancel || gen != countGen || totalBytes >= MemMaxTotalBytes;
                 int pid = 0; string pname = "proc";
                 if (!stop) { try { pid = p.Id; pname = p.ProcessName; } catch { } }
                 try { p.Dispose(); } catch { }
@@ -103,7 +103,7 @@ namespace AVUI
                     {
                         long regionSize = mbi.RegionSize.ToInt64();
                         if (regionSize <= 0) break;
-                        if (!cancelScanListing && gen == countGen && totalBytes < MemMaxTotalBytes
+                        if (!ses.Cancel && gen == countGen && totalBytes < MemMaxTotalBytes
                             && ShouldDumpRegion(mbi.State, mbi.Protect, mbi.Type, regionSize, MemMaxRegionBytes))
                         {
                             long wrote;
@@ -118,7 +118,7 @@ namespace AVUI
                         long next = mbi.BaseAddress.ToInt64() + regionSize;
                         if (next <= addr.ToInt64()) break; // no forward progress — avoid an infinite loop
                         addr = new IntPtr(next);
-                        if (cancelScanListing || gen != countGen || totalBytes >= MemMaxTotalBytes) break;
+                        if (ses.Cancel || gen != countGen || totalBytes >= MemMaxTotalBytes) break;
                     }
                 }
                 catch { }

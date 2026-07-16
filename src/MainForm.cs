@@ -33,27 +33,21 @@ namespace AVUI
         string clamVersion = "—";
         string lastScanInfo = ""; // empty = never scanned yet
         Process currentProc; // running clamscan or freshclam
-        int scannedCount, foundCount, movedCount;
         long totalScans, totalFound, totalMoved, totalFilesScanned; // cumulative statistics
-        readonly List<string[]> foundFiles = new List<string[]>(); // {path, threat name}
-        bool scanRunning, updateRunning;
-        bool monitorScan;    // true if the current scan was triggered by the monitor, not the user
+        bool updateRunning;
         bool reallyClose;    // true = exit, false = minimize to tray
         bool autostartInitialized; // whether autostart was already auto-enabled on first run
         bool modeAsked;            // first-run "portable vs installed" question already answered
         int perfMode = 1;    // scan performance: 0 = low, 1 = normal, 2 = high (see Perf* helpers)
 
-        // Progress: total file count (computed in the background), generation to cancel counting
-        int totalToScan;
-        int initialFilesToScan;
+        // The current (or last finished) scan's state — counters, phases, cancel
+        // flag. Replaced wholesale by ResetScanState; see ScanSession.cs for the
+        // lifecycle rules. Starts as an idle instance so reads never need a null check.
+        ScanSession scan = new ScanSession();
+        // Generation counter spanning scans: BeginInvoke callbacks and background
+        // walkers compare their captured value against it to detect supersession
         int countGen;
-        DateTime scanStart;
-        DateTime rateWinTime = DateTime.MinValue;     // start of the moving window used to estimate rate
-        int rateWinCount;                             // scannedCount at the start of the window
-        bool loggedTotal;            // whether "Files to check: N" was already logged
-        DateTime lastScanOutput;     // last time clamscan produced output (detects "stuck on a file")
         Timer scanHeartbeat;         // logs progress every N seconds even when clamscan is silent
-        string currentScanDesc = "";
         string scanLogPath;   // scans.log next to the exe
         Timer autoUpdateTimer;
         bool autoUpdateFirstTick = true;
@@ -231,16 +225,31 @@ namespace AVUI
             p.StartInfo = psi;
             p.EnableRaisingEvents = true;
             p.SynchronizingObject = this; // events fire on the UI thread
-            p.OutputDataReceived += delegate(object s, DataReceivedEventArgs e) { onLine(e.Data); };
-            p.ErrorDataReceived += delegate(object s, DataReceivedEventArgs e) { onLine(e.Data); };
-            p.Exited += delegate
+            // The process is finished only when all three signals are in: Exited
+            // plus EOF on stdout AND stderr (the null line is guaranteed to be a
+            // stream's last event). Exited alone can overtake the tail of the
+            // output — finalizing there could run FinishScan before the last
+            // "FOUND"/"OK" lines were counted, dropping a threat from the dialog.
+            // All three callbacks arrive on the UI thread, so plain bools suffice.
+            bool exited = false, outEof = false, errEof = false;
+            Action tryFinish = delegate
             {
+                if (!exited || !outEof || !errEof) return;
                 int code = 0;
                 try { code = p.ExitCode; } catch { }
                 currentProc = null;
                 onExit(code);
                 p.Dispose();
             };
+            p.OutputDataReceived += delegate(object s, DataReceivedEventArgs e)
+            {
+                if (e.Data == null) { outEof = true; tryFinish(); } else onLine(e.Data);
+            };
+            p.ErrorDataReceived += delegate(object s, DataReceivedEventArgs e)
+            {
+                if (e.Data == null) { errEof = true; tryFinish(); } else onLine(e.Data);
+            };
+            p.Exited += delegate { exited = true; tryFinish(); };
 
             try
             {
@@ -253,15 +262,17 @@ namespace AVUI
             catch (Exception ex)
             {
                 AppendLog(string.Format(Lang.T("log.processStartFailed"), Path.GetFileName(exe), ex.Message), Theme.Danger);
-                scanRunning = updateRunning = monitorScan = false;
+                scan.Running = false;
+                scan.Monitor = false;
+                updateRunning = false;
                 SetBusy(false, Lang.T("status.startError"));
             }
         }
 
         void StopCurrent()
         {
-            cancelUpdate = true;      // interrupts a database download in progress, if any
-            cancelScanListing = true; // interrupts building the file list for a scan
+            cancelUpdate = true; // interrupts a database download in progress, if any
+            scan.Cancel = true;  // the scan-wide stop flag: every phase exit and background walker checks it
             var wc = clamZipClient;
             if (wc != null) { try { wc.CancelAsync(); } catch { } }
             foreach (var sp in scanProcs.ToArray()) { try { sp.Kill(); } catch { } }
@@ -286,12 +297,12 @@ namespace AVUI
             if (busy)
             {
                 progress.Start();
-                if (scanRunning) SetHero(ShieldState.Busy, Lang.T("hero.scanningTitle"), Lang.T("hero.scanningSub"));
-                if (scanRunning && !monitorScan)
+                if (scan.Running) SetHero(ShieldState.Busy, Lang.T("hero.scanningTitle"), Lang.T("hero.scanningSub"));
+                if (scan.Running && !scan.Monitor)
                 {
                     // stay on the dashboard: the hero shows the busy state and STOP,
                     // the detailed output is one click away on the Logs tab
-                    lastScanOutput = DateTime.Now;
+                    scan.LastOutput = DateTime.Now;
                     scanHeartbeat.Start();
                 }
             }
