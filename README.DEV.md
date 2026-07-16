@@ -165,7 +165,7 @@ src/                       — the application (WinForms, C# 5), one portable ex
   Lang.cs                  — English/Ukrainian string table
 tests/                     — unit tests + zero-dependency test runner
 build.ps1 / test.ps1       — zero-toolchain build scripts
-app.ico / logo.png         — placeholder shield icon (temporary branding)
+app.ico / logo.png         — the AV logo, embedded into the exe at build time
 clamav/                    — portable ClamAV (not in git, downloaded)
 yara/                      — yara64.exe + rules (not in git, downloaded)
 quarantine/                — neutralized (.quar) files + index

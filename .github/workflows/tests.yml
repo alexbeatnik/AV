@@ -1,10 +1,13 @@
 name: Tests
 
-# Runs on every pull request (and on demand): builds the app to catch compile
-# breaks, then builds and runs the unit tests via test.ps1. A failing test
-# fails the check on the PR.
+# Runs on every pull request and every push to main (and on demand): builds
+# the app to catch compile breaks, then builds and runs the unit tests via
+# test.ps1. A failing test fails the check on the PR; runs on main also feed
+# the README tests badge.
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:

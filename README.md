@@ -7,6 +7,10 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows_10_/_11-0078d7.svg)](https://www.microsoft.com/windows)
 [![Framework](https://img.shields.io/badge/.NET_Framework-4.8-purple.svg)](https://dotnet.microsoft.com/download/dotnet-framework/net48)
+[![Latest release](https://img.shields.io/github/v/release/alexbeatnik/AV?label=release)](../../releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/alexbeatnik/AV/total?color=success)](../../releases)
+[![Tests](https://img.shields.io/github/actions/workflow/status/alexbeatnik/AV/tests.yml?label=tests)](../../actions/workflows/tests.yml)
+![UI languages](https://img.shields.io/badge/UI-English%20%7C%20%D0%A3%D0%BA%D1%80%D0%B0%D1%97%D0%BD%D1%81%D1%8C%D0%BA%D0%B0-green)
 
 A lightweight **multi-engine antivirus for Windows** — three layers of
 detection under one portable dashboard:
