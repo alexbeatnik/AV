@@ -161,6 +161,7 @@ src/                       — the application (WinForms, C# 5), one portable ex
   MainForm.Engines.cs      — the engines settings dialog
   MainForm.Scan.cs         — scans, progress/ETA, clamd engine
   MainForm.*.cs            — monitor, quarantine, updates, install, USB, UI…
+  ScanSession.cs           — per-scan state (counters, phases, cancel flag)
   Lang.cs                  — English/Ukrainian string table
 tests/                     — unit tests + zero-dependency test runner
 build.ps1 / test.ps1       — zero-toolchain build scripts
