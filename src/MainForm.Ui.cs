@@ -46,6 +46,20 @@ namespace AVUI
             ShowPage(0);
             EnsureAutostartFirstRun();
 
+            // The VirusTotal cell in the engines strip shows an "offline" state —
+            // refresh it the moment the network drops or comes back, not only on
+            // the next page switch. The event fires on a worker thread.
+            System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged +=
+                delegate
+                {
+                    try
+                    {
+                        if (!IsDisposed && IsHandleCreated)
+                            BeginInvoke((MethodInvoker)delegate { UpdateStatsUi(); });
+                    }
+                    catch { } // racing shutdown — nothing to update
+                };
+
             if (startInTray)
             {
                 WindowState = FormWindowState.Minimized;

@@ -169,6 +169,11 @@ namespace AVUI
                     vtStatus.Text = "● " + Lang.T("sval.disabled");
                     vtStatus.ForeColor = Theme.Muted;
                 }
+                else if (!NetOnline())
+                {
+                    vtStatus.Text = "● " + Lang.T("engines.vtStatusOffline");
+                    vtStatus.ForeColor = Theme.Warn;
+                }
                 else
                 {
                     vtStatus.Text = "● " + Lang.T("engines.vtStatusOn");

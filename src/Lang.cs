@@ -486,6 +486,7 @@ namespace AVUI
             A("stat.virustotal", "VirusTotal", "VirusTotal");
             A("sval.downloading", "Downloading…", "Завантажується…");
             A("sval.vtNoKey", "No API key", "Немає ключа");
+            A("sval.vtOffline", "Offline", "Немає мережі");
 
             // YARA engine
             A("btn.engines", "DETECTION ENGINES…", "РУШІЇ ВИЯВЛЕННЯ…");
@@ -530,6 +531,8 @@ namespace AVUI
             A("engines.vtGetKey", "Get a key", "Отримати ключ");
             A("engines.vtStatusOn", "Ready: hash checks enabled", "Готово: перевірка за хешем увімкнена");
             A("engines.vtStatusNoKey", "No API key — VirusTotal checks are off", "Немає API-ключа — перевірки VirusTotal не працюють");
+            A("engines.vtStatusOffline", "No internet connection — checks resume when back online",
+                "Немає з'єднання з інтернетом — перевірки відновляться після появи мережі");
             A("btn.testKey", "TEST KEY", "ПЕРЕВІРИТИ КЛЮЧ");
             A("engines.vtKeyEmpty", "Enter a key first.", "Спершу введи ключ.");
             A("engines.vtTesting", "Checking the key…", "Перевіряю ключ…");

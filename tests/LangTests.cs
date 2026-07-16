@@ -181,6 +181,21 @@ namespace AVUI.Tests
             }
         }
 
+        public static void TestVtOfflineKeysExistInBothLanguages()
+        {
+            // the "no internet" state of the VirusTotal cell (engines strip) and
+            // its longer wording in the Engines dialog
+            string[] keys = { "sval.vtOffline", "engines.vtStatusOffline" };
+            foreach (string key in keys)
+            {
+                string en, uk;
+                using (new LangScope(Lang.Language.English)) en = Lang.T(key);
+                using (new LangScope(Lang.Language.Ukrainian)) uk = Lang.T(key);
+                Assert.True(en != key, key + " exists in English");
+                Assert.True(uk != key && uk != en, key + " has its own Ukrainian translation");
+            }
+        }
+
         public static void TestBrandButtonKeysExist()
         {
             // btn.ok / btn.virustotal are deliberately identical in both languages

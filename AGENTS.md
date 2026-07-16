@@ -113,3 +113,9 @@ Follow the matching rule whenever a change touches one of these areas:
   to `main` publishes the GitHub Release the app self-updates from.
 - **`verify`** — launching the built exe for a manual check: single-instance
   tray app, both languages, and the Defender-eats-EICAR gotcha.
+- **`screenshots`** — the four README screenshots are retaken by the
+  `screenshots` skill (`.claude/skills/screenshots/`): it summons the running
+  instance's window, runs a real quick scan, and captures each page via UI
+  Automation. All the traps (tray-restored `MainWindowHandle` = 0, UIA names
+  of custom controls, monitor noise from `%TEMP%` writes) are documented in
+  its SKILL.md — don't re-derive them.
