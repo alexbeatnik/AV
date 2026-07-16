@@ -70,7 +70,6 @@ namespace AVUI
             A("nav.settings", "Settings", "Налаштування");
 
             // Cards
-            A("card.system", "System", "Система");
             A("card.quarantine", "Quarantine", "Карантин");
             A("card.scanning", "Scanning", "Сканування");
             A("card.settings", "Settings", "Налаштування");
@@ -89,9 +88,6 @@ namespace AVUI
             A("btn.updateDb", "UPDATE DATABASE", "ОНОВИТИ БАЗИ");
             A("btn.openLog", "OPEN LOG FILE", "ВІДКРИТИ ФАЙЛ ЖУРНАЛУ");
             A("btn.exclusions", "MANAGE EXCLUSIONS…", "КЕРУВАТИ ВИКЛЮЧЕННЯМИ…");
-            A("btn.quick", "QUICK", "ШВИДКИЙ");
-            A("btn.file", "FILE", "ФАЙЛ");
-            A("btn.folder", "FOLDER", "ПАПКА");
             A("btn.stop", "STOP", "ЗУПИНИТИ");
             A("btn.clearLog", "CLEAR", "ОЧИСТИТИ");
             A("btn.folders", "MANAGE…", "КЕРУВАТИ…");
@@ -103,7 +99,6 @@ namespace AVUI
 
             // Quarantine page
             A("col.size", "Size", "Розмір");
-            A("col.source", "Source", "Джерело");
             A("btn.restoreExclude", "Restore & exclude", "Відновити й виключити");
             A("quarantine.searchCue", "Search quarantine…", "Пошук у карантині…");
             A("quarantine.emptyTitle", "No files in quarantine", "У карантині порожньо");
@@ -124,7 +119,6 @@ namespace AVUI
             A("prop.size", "Size", "Розмір");
             A("btn.copyHash", "COPY HASH", "КОПІЮВАТИ ХЕШ");
             A("status.hashCopied", "SHA256 copied to clipboard.", "SHA256 скопійовано в буфер обміну.");
-            A("btn.installedPF", "INSTALLED", "ВСТАНОВЛЕНО");
             A("btn.installPF", "INSTALL FOR THIS USER", "ВСТАНОВИТИ ДЛЯ КОРИСТУВАЧА");
             A("btn.fixWinTemp", "FIX C:\\WINDOWS\\TEMP ACCESS", "ВІДНОВИТИ ДОСТУП ДО C:\\WINDOWS\\TEMP");
             A("btn.close", "Close", "Закрити");
@@ -404,7 +398,7 @@ namespace AVUI
                 "Сервер оновлень тимчасово обмежив завантаження з цієї адреси (HTTP 429 —\r\n"
                 + "забагато запитів). Це мине саме собою, орієнтовно після {0}.\r\n"
                 + "Повторні спроби можуть подовжити блокування. Спробувати все одно?");
-            A("log.updatingDbFirstTime", "Updating the signature database (first time is ~200 MB, please wait)…\r\n\r\n", "Оновлюю бази сигнатур (перший раз це ~200 МБ, зачекай)…\r\n\r\n");
+            A("log.updatingDbFirstTime", "Updating the signature database (first time is ~120 MB, please wait)…\r\n\r\n", "Оновлюю бази сигнатур (перший раз це ~120 МБ, зачекай)…\r\n\r\n");
             A("log.autoUpdating", "Auto-updating database…\r\n", "Автооновлення баз…\r\n");
             A("status.autoUpdatingDb", "Auto-updating database…", "Автооновлення баз…");
             A("status.updatingDb", "Updating database…", "Оновлення баз…");
@@ -448,7 +442,7 @@ namespace AVUI
             A("hero.dbNeeded", "Signature database needed", "Потрібні бази сигнатур");
             A("hero.dbStale", "Signature database is outdated", "Бази сигнатур застаріли");
             A("hero.dbStaleSub", "Signatures from {0} — press \"Update Database\"", "Сигнатури від {0} — натисни «Оновити бази»");
-            A("hero.pressUpdateFirstTime", "Press \"Update Database\" — first download is ~250 MB", "Натисни «Оновити бази» — перший раз завантажиться ~250 МБ");
+            A("hero.pressUpdateFirstTime", "Press \"Update Database\" — first download is ~120 MB", "Натисни «Оновити бази» — перший раз завантажиться ~120 МБ");
             A("tray.appUpdateInstalling", "Updating AV to {0} — the app will restart in a few seconds…", "Оновлюю AV до {0} — програма перезапуститься за кілька секунд…");
             A("stats.neverScanned", "never", "ще не було");
             // About dialog
@@ -464,13 +458,13 @@ namespace AVUI
                 + "файлів, перевірка USB та знешкоджений карантин. Без фонових служб і реклами.");
             A("about.quickStart", "Quick start", "Швидкий старт");
             A("about.howTo",
-                "1. Press UPDATE DATABASE on the dashboard — the first download is ~250 MB.\r\n"
+                "1. Press UPDATE DATABASE on the dashboard — the first download is ~330 MB (engine + database).\r\n"
                 + "2. QUICK SCAN checks common infection points in minutes.\r\n"
                 + "3. Monitoring checks new files in Downloads, Desktop and other folders automatically.\r\n"
                 + "4. Detections land in Quarantine — restore or delete them there.\r\n"
                 + "5. Closing the window minimizes to tray; protection keeps running.\r\n"
                 + "6. Runs portable (everything stays in its own folder) or installed per-user (no admin rights) — the first start asks once; installing later is one button in Settings.",
-                "1. Натисни «ОНОВИТИ БАЗИ» на панелі — перше завантаження ~250 МБ.\r\n"
+                "1. Натисни «ОНОВИТИ БАЗИ» на панелі — перше завантаження ~330 МБ (рушій + бази).\r\n"
                 + "2. «ШВИДКИЙ СКАН» за лічені хвилини перевіряє типові місця зараження.\r\n"
                 + "3. Моніторинг автоматично перевіряє нові файли в Downloads, на робочому столі та інших папках.\r\n"
                 + "4. Знахідки потрапляють у Карантин — там їх можна відновити або видалити.\r\n"

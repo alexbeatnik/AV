@@ -22,8 +22,9 @@ detection under one portable dashboard:
    so one false alarm from a heuristic rule doesn't scare you for nothing.
 
 The app itself is a single ~290 KB exe; the engines it orchestrates are
-fetched automatically on first run (ClamAV with its signature database
-~220 MB, YARA with its rules ~15 MB) and kept updated. Interface in
+fetched automatically on first run (the ~220 MB ClamAV package plus its
+~110 MB signature database, YARA with its rules ~10 MB) and kept updated.
+Interface in
 **English** and **Ukrainian**. Idle in the tray it uses under 15 MB of RAM;
 nothing is installed system-wide and admin rights are never required.
 
@@ -41,8 +42,8 @@ nothing is installed system-wide and admin rights are never required.
 1. Download `AV.exe` from the [latest release](../../releases/latest).
 2. Run it. The first start asks: install per-user (shortcuts, "Apps" entry,
    no admin rights) or stay portable — a single folder you can carry around.
-3. That's it. ClamAV with its signature database (~220 MB) and the YARA
-   engine + rules (~15 MB) are downloaded automatically; the app keeps them
+3. That's it. ClamAV with its signature database (~330 MB) and the YARA
+   engine + rules (~10 MB) are downloaded automatically; the app keeps them
    updated and updates itself from GitHub Releases.
 
 To get the VirusTotal layer, paste a free API key from

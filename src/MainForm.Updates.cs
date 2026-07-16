@@ -102,7 +102,11 @@ namespace AVUI
                 SaveSettings();
             }
             if (updatePath == null) return;
-            if (scan.Running || updateRunning) { TryDelete(updatePath); return; } // busy — retried tomorrow
+            // busy — retried tomorrow. Held-back VirusTotal verdicts count as busy
+            // too: vtPendingYara lives only in memory, so restarting mid-phase-3
+            // would silently drop the suspicious files awaiting their verdict.
+            if (scan.Running || updateRunning || vtPhaseRunning || vtPendingYara.Count > 0)
+            { TryDelete(updatePath); return; }
             ApplyAppUpdate(updatePath, version);
         }
 
@@ -278,6 +282,17 @@ namespace AVUI
                 string dst = Path.Combine(baseDir, "clamav");
                 if (!File.Exists(Path.Combine(src, "clamscan.exe")))
                     throw new Exception(Lang.T("err.noClamscanInArchive"));
+                // The official zip unpacks to ~900 MB, ~760 MB of which is
+                // build-time artifacts the scanner never reads at runtime
+                // (.pdb debug symbols, clamav_rust.lib) — drop them so the
+                // install keeps only the ~140 MB that actually runs
+                foreach (string f in Directory.GetFiles(src))
+                {
+                    string ext = Path.GetExtension(f);
+                    if (ext.Equals(".pdb", StringComparison.OrdinalIgnoreCase)
+                        || ext.Equals(".lib", StringComparison.OrdinalIgnoreCase))
+                        TryDelete(f);
+                }
                 PromoteExtractedFolder(src, dst);
                 if (Directory.Exists(tmp)) Directory.Delete(tmp, true);
                 File.Delete(zipPath);

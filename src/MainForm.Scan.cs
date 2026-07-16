@@ -302,6 +302,9 @@ namespace AVUI
             if (!ScheduledScanDue(schedMode, lastScheduledScan, DateTime.Now)) return;
             if (ProtectionPaused) return; // stays due — starts once protection resumes
             if (scan.Running || updateRunning || startingEngine || clamDir == null || !DbExists()) return;
+            // a finished scan still visually in phase 3 (VirusTotal verdicts
+            // pending) must not be cut short by a timer — stays due, retried
+            if (vtPhaseRunning) return;
             if (!NativeMethods.IsWindowEnabled(Handle)) return; // a dialog is open — retry on a later tick
             RunQuickScan();
             if (!scan.Running) return; // didn't start — stays due, retried on the next tick

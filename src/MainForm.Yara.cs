@@ -466,17 +466,21 @@ namespace AVUI
                     if (string.Equals(ff[0], path, StringComparison.OrdinalIgnoreCase)) { known = true; break; }
                 if (known) continue; // ClamAV already reported this file
                 bool isMemDump = memDumpDir != null && IsUnder(path, memDumpDir);
-                string hash = null;
+                // Cheap readability probe only — the actual SHA256 is computed by
+                // the lookup worker off the UI thread (VtQueueFile accepts a null
+                // hash): hashing a multi-GB match here used to freeze the UI.
+                bool readable = false;
                 if (VtActive && !isMemDump)
                 {
-                    try { hash = Sha256OfQuarFile(path); } catch { }
+                    try { using (File.OpenRead(path)) { } readable = true; } catch { }
                 }
                 // One community-rule match is a suspicion, not a verdict — Forge
                 // rules do hit legitimate packers/installers. When VirusTotal can
                 // arbitrate, hold the file untouched until the hash verdict arrives
                 // (ResolvePendingYara). RAM dumps can't wait: their temp files are
-                // deleted right after the scan, so they take the immediate path.
-                if (hash != null && VtQueueFile(path, hash))
+                // deleted right after the scan, so they take the immediate path;
+                // so does a file we can't even read (locked — hashing would fail).
+                if (readable && VtQueueFile(path, null))
                 {
                     pending++;
                     vtPendingYara[path] = new string[] { threat, scan.Desc };
