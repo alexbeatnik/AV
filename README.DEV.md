@@ -112,7 +112,9 @@ deleted when the scan ends, so they go straight to the threat flow.
 The YARA engine (`yara64.exe`, from the official
 [VirusTotal/yara](https://github.com/VirusTotal/yara) releases) and the YARA
 Forge *core* rule set are downloaded automatically on first run and the rules
-are refreshed weekly. Custom rules go into `yara\rules\custom\`.
+are refreshed weekly (matching YARA Forge's weekly release cadence); the same
+weekly pass also re-downloads `yara64.exe` itself when VirusTotal has shipped
+a newer release. Custom rules go into `yara\rules\custom\`.
 
 Everything is configured in **Settings → DETECTION ENGINES…** — the
 YARA toggle and rules maintenance, and the VirusTotal API key with the

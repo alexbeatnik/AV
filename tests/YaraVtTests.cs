@@ -67,6 +67,42 @@ namespace AVUI.Tests
         }
     }
 
+    // The weekly rules refresh also updates yara64.exe itself when a newer
+    // release is out; the decision must be strictly conservative — re-download
+    // only when both versions are readable and the remote one is newer.
+    public static class YaraEngineVersionTests
+    {
+        public static void TestNewerRemoteWins()
+        {
+            Assert.True(MainForm.YaraVersionIsNewer("v4.5.3", "4.5.2"), "patch bump");
+            Assert.True(MainForm.YaraVersionIsNewer("v4.6.0", "4.5.9"), "minor bump");
+            Assert.True(MainForm.YaraVersionIsNewer("v5.0", "4.5.2"), "major bump, two-part tag");
+        }
+
+        public static void TestSameOrOlderRemoteDoesNotUpdate()
+        {
+            Assert.True(!MainForm.YaraVersionIsNewer("v4.5.2", "4.5.2"), "same version");
+            Assert.True(!MainForm.YaraVersionIsNewer("v4.5.1", "4.5.2"), "remote older");
+        }
+
+        public static void TestUnreadableSidesNeverUpdate()
+        {
+            Assert.True(!MainForm.YaraVersionIsNewer(null, "4.5.2"), "no tag (offline)");
+            Assert.True(!MainForm.YaraVersionIsNewer("v4.5.3", null), "no local output");
+            Assert.True(!MainForm.YaraVersionIsNewer("garbage", "4.5.2"), "unparsable tag");
+            Assert.True(!MainForm.YaraVersionIsNewer("v4.5.3", "error: foo"), "unparsable local");
+        }
+
+        public static void TestVersionParsingTolerance()
+        {
+            Assert.Equal(new Version(4, 5, 2), MainForm.ParseYaraVersion("v4.5.2"), "leading v");
+            Assert.Equal(new Version(4, 5, 2), MainForm.ParseYaraVersion("yara 4.5.2 (build 7)"), "surrounding chatter");
+            Assert.Equal(new Version(4, 5, 0), MainForm.ParseYaraVersion("4.5"), "two-part version pads to .0");
+            Assert.True(MainForm.ParseYaraVersion("no digits here") == null, "no version-like token");
+            Assert.True(MainForm.ParseYaraVersion(null) == null, "null input");
+        }
+    }
+
     public static class YaraParseTests
     {
         public static void TestMatchLineIsParsed()

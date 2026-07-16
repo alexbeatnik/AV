@@ -104,6 +104,15 @@ namespace AVUI
                     Directory.CreateDirectory(YaraRulesDir);
                     Directory.CreateDirectory(YaraCustomDir);
                     if (needExe) DownloadYaraEngine();
+                    else if (forceRules)
+                    {
+                        // the weekly rules refresh also keeps the engine current:
+                        // yara64 releases a few times a year, and without this the
+                        // exe installed on day one would never be updated. Any
+                        // doubt (either version unreadable) means no re-download.
+                        if (YaraVersionIsNewer(LatestYaraTag(), InstalledYaraVersion()))
+                            DownloadYaraEngine();
+                    }
                     if (needRules) DownloadYaraForgeRules();
                 }
                 catch (Exception ex) { err = ex.Message; }
@@ -200,6 +209,73 @@ namespace AVUI
             foreach (string f in Directory.GetFiles(dir, name, SearchOption.AllDirectories))
                 return f;
             return null;
+        }
+
+        // ---------- Engine version check (piggybacks on the weekly refresh) ----------
+
+        // "yara64.exe --version" prints a bare "4.5.2"; null when the exe is
+        // missing/broken or prints nothing in time. Called on the setup thread.
+        string InstalledYaraVersion()
+        {
+            try
+            {
+                var psi = new ProcessStartInfo(YaraExe, "--version");
+                psi.UseShellExecute = false;
+                psi.CreateNoWindow = true;
+                psi.RedirectStandardOutput = true;
+                using (var p = Process.Start(psi))
+                {
+                    // bounded wait — a broken exe that prints nothing must not
+                    // hang the setup thread (same pattern as FetchClamVersion)
+                    var read = p.StandardOutput.ReadLineAsync();
+                    string line = read.Wait(3000) ? read.Result : null;
+                    p.WaitForExit(3000);
+                    return line;
+                }
+            }
+            catch { return null; }
+        }
+
+        // Latest release tag ("v4.5.2") from the GitHub API; null when offline
+        // or rate-limited — the caller then simply skips the engine update.
+        static string LatestYaraTag()
+        {
+            try
+            {
+                using (var api = new System.Net.WebClient())
+                {
+                    api.Headers.Add("User-Agent", "AV");
+                    string json = api.DownloadString(YaraApiUrl);
+                    var m = Regex.Match(json, "\"tag_name\"\\s*:\\s*\"([^\"]+)\"");
+                    return m.Success ? m.Groups[1].Value : null;
+                }
+            }
+            catch { return null; }
+        }
+
+        // True only when both sides parse and the remote release is strictly
+        // newer — any doubt means no re-download (a needless engine swap risks
+        // racing a scan for nothing).
+        internal static bool YaraVersionIsNewer(string remoteTag, string localVersion)
+        {
+            Version remote = ParseYaraVersion(remoteTag);
+            Version local = ParseYaraVersion(localVersion);
+            return remote != null && local != null && remote > local;
+        }
+
+        // Tolerates a leading "v" and surrounding chatter: "v4.5.2", "4.5.2",
+        // "yara 4.5.2 (build)" all yield 4.5.2; null when nothing version-like.
+        internal static Version ParseYaraVersion(string s)
+        {
+            if (s == null) return null;
+            var m = Regex.Match(s, "(\\d+)\\.(\\d+)(?:\\.(\\d+))?");
+            if (!m.Success) return null;
+            try
+            {
+                return new Version(int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value),
+                    m.Groups[3].Success ? int.Parse(m.Groups[3].Value) : 0);
+            }
+            catch { return null; } // digits too long for int — treat as unparsable
         }
 
         // Weekly rules refresh, piggybacking on the hourly auto-update timer
