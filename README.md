@@ -9,7 +9,7 @@
 [![Framework](https://img.shields.io/badge/.NET_Framework-4.8-purple.svg)](https://dotnet.microsoft.com/download/dotnet-framework/net48)
 
 A lightweight **multi-engine antivirus for Windows** — three layers of
-detection in one ~290 KB portable exe:
+detection under one portable dashboard:
 
 1. **ClamAV** — the classic signature engine (official, unmodified binaries);
 2. **YARA rules** — community heuristics from [YARA Forge](https://yarahq.github.io/)
@@ -17,9 +17,11 @@ detection in one ~290 KB portable exe:
 3. **VirusTotal** — suspicious files are checked by hash against 70+ engines,
    so one false alarm from a heuristic rule doesn't scare you for nothing.
 
-Interface in **English** and **Ukrainian**. Idle in the tray it uses under
-15 MB of RAM; nothing is installed system-wide and admin rights are never
-required.
+The app itself is a single ~290 KB exe; the engines it orchestrates are
+fetched automatically on first run (ClamAV with its signature database
+~220 MB, YARA with its rules ~15 MB) and kept updated. Interface in
+**English** and **Ukrainian**. Idle in the tray it uses under 15 MB of RAM;
+nothing is installed system-wide and admin rights are never required.
 
 <p align="center">
   <img src="screenshots/dashboard.png" width="400" alt="Dashboard" />
