@@ -41,7 +41,7 @@ namespace AVUI
         readonly Dictionary<string, string[]> vtPendingYara
             = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
         // Threat verdicts that arrived while an unrelated scan was running:
-        // parked here instead of that scan's foundFiles, surfaced by
+        // parked here instead of that scan's FoundFiles list, surfaced by
         // FlushVtLateThreats once the scan is done. {path, threat, scan desc}
         readonly List<string[]> vtLateThreats = new List<string[]>();
         // Outcome tally of the current pending batch, for the summary toast
@@ -209,7 +209,7 @@ namespace AVUI
                     VtClassify(status, mal, susp, total),
                     mal, susp, total, err != null ? err : "HTTP " + status);
                 if (vtPendingYara.Count == 0) VtNotifyPendingDone();
-                else if (!scanRunning) // don't clobber a newer scan's status bar
+                else if (!scan.Running) // don't clobber a newer scan's status bar
                 {
                     int got = vtResolvedClean + vtResolvedFlagged;
                     statusLabel.Text = PhasePrefix(3)
@@ -311,12 +311,12 @@ namespace AVUI
         }
 
         // Puts a VT-confirmed threat in front of the user without touching a
-        // running scan's foundFiles/currentScanDesc — the verdict may belong to
-        // an earlier scan whose state was already reset.
+        // running scan's session (FoundFiles/Desc) — the verdict may belong to
+        // an earlier scan whose session was already replaced.
         void VtReportThreat(string path, string threat, string scanDesc)
         {
             vtLateThreats.Add(new string[] { path, threat, scanDesc });
-            if (!scanRunning) FlushVtLateThreats();
+            if (!scan.Running) FlushVtLateThreats();
         }
 
         // Fires once the last held-back verdict is in. The scan-finished toast
@@ -359,7 +359,7 @@ namespace AVUI
                 AppendLog(string.Format(Lang.T("log.vtPendingDone"), flagged, total), Theme.Warn, "WARN", false);
                 Notify(6000, summary, ToolTipIcon.Warning);
             }
-            if (!scanRunning) statusLabel.Text = summary; // phase 3 done — the status shows the outcome
+            if (!scan.Running) statusLabel.Text = summary; // phase 3 done — the status shows the outcome
         }
 
         // Shows the parked verdicts in their own threat dialog. Called right away

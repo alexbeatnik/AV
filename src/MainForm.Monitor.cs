@@ -328,7 +328,7 @@ namespace AVUI
 
         void OnDebounceTick(object sender, EventArgs e)
         {
-            if (scanRunning || updateRunning || !DbExists()) return; // try again on the next tick
+            if (scan.Running || updateRunning || !DbExists()) return; // try again on the next tick
             var ready = new List<string>();
             var stillLocked = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (KeyValuePair<string, int> kvp in pendingFiles)
@@ -375,10 +375,10 @@ namespace AVUI
         void ScanFileBatch(List<string> files)
         {
             ResetScanState(Lang.T("desc.autoCheck"));
-            monitorScan = true;
+            scan.Monitor = true;
             countGen++; // the total is known upfront, no background counting needed
-            totalToScan = files.Count;
-            initialFilesToScan = files.Count;
+            scan.TotalToScan = files.Count;
+            scan.InitialTotal = files.Count;
             AppendSection(Lang.T("desc.autoCheck"));
             AppendLog(string.Format(Lang.T("log.newFilesHeader"), DateTime.Now, files.Count), Theme.Text, "SCAN", false);
             SetBusy(true, string.Format(Lang.T("status.autoCheck"), files.Count));
@@ -393,9 +393,9 @@ namespace AVUI
                 File.WriteAllLines(lp, files.ToArray(), new UTF8Encoding(false));
                 batchListPaths.Add(lp);
                 args.Append(" --file-list=").Append(Quote(lp));
-                yaraListPath = lp;  // new files get the YARA pass too
-                yaraPhasePending = true;
-                yaraPhaseExpected = YaraReady(); // label only — OnScanExit re-decides the phase live
+                scan.YaraListPath = lp;  // new files get the YARA pass too
+                scan.YaraPhasePending = true;
+                scan.YaraPhaseExpected = YaraReady(); // label only — OnScanExit re-decides the phase live
             }
             catch (Exception ex)
             {

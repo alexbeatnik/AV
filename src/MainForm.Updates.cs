@@ -37,7 +37,7 @@ namespace AVUI
 
         void MaybeCheckAppUpdate()
         {
-            if (checkingAppUpdate || scanRunning || updateRunning) return;
+            if (checkingAppUpdate || scan.Running || updateRunning) return;
             if (!AppUpdateDue(startupAppCheckDone, lastAppUpdateCheck, DateTime.Now, AppUpdateCheckHours)) return;
             startupAppCheckDone = true; // set only when a check actually launches
             checkingAppUpdate = true;
@@ -102,7 +102,7 @@ namespace AVUI
                 SaveSettings();
             }
             if (updatePath == null) return;
-            if (scanRunning || updateRunning) { TryDelete(updatePath); return; } // busy — retried tomorrow
+            if (scan.Running || updateRunning) { TryDelete(updatePath); return; } // busy — retried tomorrow
             ApplyAppUpdate(updatePath, version);
         }
 
@@ -175,7 +175,7 @@ namespace AVUI
 
         void StartClamAVDownload()
         {
-            if (scanRunning || updateRunning) return;
+            if (scan.Running || updateRunning) return;
             updateRunning = true;
 
             // If the archive was already downloaded (interrupted install), extract it instead of re-downloading
@@ -326,7 +326,7 @@ namespace AVUI
 
         void RunFreshclam(bool auto)
         {
-            if (scanRunning || updateRunning) return;
+            if (scan.Running || updateRunning) return;
             if (clamDir == null) { StartClamAVDownload(); return; } // clean PC
             // the server rate-limited us (429) — don't hammer it, that would extend the block
             if (DateTime.Now < dbCooldownUntil)

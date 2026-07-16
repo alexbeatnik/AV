@@ -41,7 +41,8 @@ One `MainForm` class split into partial files by concern:
 
 | File | Concern |
 |------|---------|
-| `src/MainForm.cs` | state fields, `Main()`, process plumbing, log rendering, autostart |
+| `src/MainForm.cs` | app-lifetime state fields, `Main()`, process plumbing, log rendering, autostart |
+| `src/ScanSession.cs` | per-scan state (counters, phases, cancel flag) — see below |
 | `src/MainForm.Ui.cs` | all UI construction, pages, dialogs, `ApplyLanguage()` |
 | `src/MainForm.Scan.cs` | scans, progress/ETA, clamd engine, scheduled quick scan |
 | `src/MainForm.MemScan.cs` | quick-scan process-memory dumping (RAM regions → temp files → clamd) |
@@ -63,6 +64,16 @@ not exits) and no visible caption text, and the settings card uses absolute
 positions. All state lives on the UI thread — background work goes through `ThreadPool`/threads
 and marshals back with `BeginInvoke` (wrapped in `try/catch` for the
 form-already-closed case). Child processes set `SynchronizingObject = this`.
+
+Per-scan state (counters, phase flags, the cancel flag, the YARA phase bookkeeping)
+lives in a `ScanSession` object (`MainForm.scan`), replaced wholesale by
+`ResetScanState` — so nothing can leak from one scan into the next — and kept
+referenced after the scan ends for late readers (threat dialog, scans.log, VT
+verdicts). Background workers (the listing thread, the clamd starter, the YARA
+workload sizer) capture the session they were started for and honor *its* `Cancel`
+flag; a superseded scan's late writes land in its own dead object. State that must
+outlive a scan stays on `MainForm`: `vtPendingYara`, `vtPhaseRunning`, cumulative
+statistics, the clamd daemon, `memDumpPaths` (cleaned after the modal threat dialog).
 
 Quick scan, full scan, and the dedicated **Scan RAM** dashboard button all dump
 running processes' executable RAM (`MainForm.MemScan.cs`): best-effort

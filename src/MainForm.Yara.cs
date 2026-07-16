@@ -24,20 +24,12 @@ namespace AVUI
         DateTime lastYaraRulesCheck;      // when the Forge rules were last downloaded (persisted)
         volatile bool yaraSetupRunning;   // an engine/rules download is already in flight
         int yaraSetupFails;               // consecutive download failures (see EnsureYaraSetup)
-        string yaraListPath;              // file list of the current scan, reused for the YARA phase
-        bool yaraPhasePending;            // a scan is running and YARA should follow the ClamAV part
-        bool yaraPhaseExpected;           // snapshot of YaraReady() at scan start — drives only the
-                                          // "Phase 1 of N" label; the phase itself is re-decided live
-                                          // in OnScanExit, so an engine that finishes downloading
-                                          // mid-scan still gets its pass (just without the label)
-        int yaraClamCode;                 // ClamAV exit code, held while the YARA phase runs
-        DateTime yaraPhaseStart;          // when the YARA phase of this scan began (MinValue = didn't run)
-        volatile bool yaraRunning;        // the yara64 process is scanning (heartbeat message)
-        readonly Dictionary<string, string> yaraMatches
-            = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // path → rule
+        // The per-scan YARA phase state (list path, pending/expected flags, match
+        // map, progress counters) lives in ScanSession — note in particular that
+        // YaraPhaseExpected only drives the "Phase 1 of N" label; the phase itself
+        // is re-decided live in OnScanExit, so an engine that finishes downloading
+        // mid-scan still gets its pass (just without the label).
         Timer yaraProgressTimer;          // polls yara64's IO counters for the progress bar
-        long yaraTotalBytes;              // bytes yara64 is expected to read (computed in the background)
-        double yaraLastFraction;          // last estimate, reused by the 10s heartbeat log line
 
         // yara64 prints nothing per file, so unlike the ClamAV phase there is no
         // output to count. Progress is instead estimated from how many bytes the
@@ -213,7 +205,7 @@ namespace AVUI
         // Weekly rules refresh, piggybacking on the hourly auto-update timer
         void MaybeUpdateYaraRules()
         {
-            if (!yaraEnabled || yaraSetupRunning || scanRunning || updateRunning) return;
+            if (!yaraEnabled || yaraSetupRunning || scan.Running || updateRunning) return;
             if (!File.Exists(YaraExe)) { EnsureYaraSetup(false); return; }
             if ((DateTime.Now - lastYaraRulesCheck).TotalDays < 7) return;
             EnsureYaraSetup(true);
@@ -226,15 +218,15 @@ namespace AVUI
         // second pass with yara64 before the scan is finalized.
         void OnScanExit(int exitCode)
         {
-            // cancelScanListing doubles as the scan-wide cancel flag (StopCurrent sets
+            // scan.Cancel doubles as the scan-wide cancel flag (StopCurrent sets
             // it): a stopped scan must not continue into the YARA phase
-            if (!yaraPhasePending || cancelScanListing || !YaraReady() || yaraListPath == null || !File.Exists(yaraListPath))
+            if (!scan.YaraPhasePending || scan.Cancel || !YaraReady() || scan.YaraListPath == null || !File.Exists(scan.YaraListPath))
             {
-                yaraPhasePending = false;
+                scan.YaraPhasePending = false;
                 FinishScan(exitCode);
                 return;
             }
-            yaraPhasePending = false;
+            scan.YaraPhasePending = false;
             StopClamd(); // release the daemon's memory before the second engine runs
             RunYaraPhase(exitCode);
         }
@@ -256,12 +248,12 @@ namespace AVUI
 
         void RunYaraPhase(int clamCode)
         {
-            yaraClamCode = clamCode;
-            yaraPhaseStart = DateTime.Now;
-            yaraMatches.Clear();
-            yaraErrLines = 0;
-            yaraLastFraction = 0;
-            if (!monitorScan) AppendSection(Lang.T("section.yara"));
+            scan.YaraClamCode = clamCode;
+            scan.YaraPhaseStart = DateTime.Now;
+            scan.YaraMatches.Clear();
+            scan.YaraErrLines = 0;
+            scan.YaraLastFraction = 0;
+            if (!scan.Monitor) AppendSection(Lang.T("section.yara"));
 
             // On Windows, yara64.exe expects the --scan-list file to be encoded in
             // UTF-16 LE (Unicode without BOM) and writes match results to stdout
@@ -270,13 +262,13 @@ namespace AVUI
             // Additionally, yara64.exe opens files via the ANSI code page (fopen), so
             // we filter out paths that cannot round-trip through the default ANSI encoding,
             // otherwise they cannot be opened anyway and would cause unreadable error logs.
-            string scanList = yaraListPath;
+            string scanList = scan.YaraListPath;
             int unsupported = 0;
             List<string> safePaths = null; // kept for the progress total below
             try
             {
                 var unicodeWithoutBom = new UnicodeEncoding(false, false);
-                var raw = File.ReadAllLines(yaraListPath);
+                var raw = File.ReadAllLines(scan.YaraListPath);
                 var safe = AnsiSafePaths(new List<string>(raw), Encoding.Default, out unsupported);
                 if (safe.Count == 0)
                 {
@@ -300,19 +292,20 @@ namespace AVUI
             // Total workload for the progress estimate, summed off the UI thread
             // (metadata-only reads; the OS cache is still warm from the ClamAV
             // phase). Until it's done the bar just sits at 0%.
-            yaraTotalBytes = 0;
-            if (!monitorScan && safePaths != null)
+            scan.YaraTotalBytes = 0;
+            if (!scan.Monitor && safePaths != null)
             {
                 bool skipBig = chkSkipBig.Checked;
                 string[] sizePaths = safePaths.ToArray();
+                var ses = scan; // a slow sizing pass must not write into a newer scan's session
                 System.Threading.ThreadPool.QueueUserWorkItem(delegate
                 {
                     long sum = YaraWorkloadBytes(sizePaths, skipBig);
-                    System.Threading.Interlocked.Exchange(ref yaraTotalBytes, sum);
+                    System.Threading.Interlocked.Exchange(ref ses.YaraTotalBytes, sum);
                 });
             }
 
-            AppendLog(Lang.T("log.yaraScanning"), monitorScan ? Theme.Muted : Theme.Text, "SCAN", monitorScan);
+            AppendLog(Lang.T("log.yaraScanning"), scan.Monitor ? Theme.Muted : Theme.Text, "SCAN", scan.Monitor);
             statusLabel.Text = PhasePrefix(2) + Lang.T("status.yaraScanning");
 
             var args = new StringBuilder();
@@ -327,7 +320,7 @@ namespace AVUI
                 args.Append(" r").Append(ns).Append(":").Append(Quote(rf));
             }
             args.Append(" --scan-list ").Append(Quote(scanList));
-            yaraRunning = true;
+            scan.YaraRunning = true;
             // yara64 outputs in UTF-8 (handled by standard StartProcess overload)
             StartProcess(YaraExe, args.ToString(), OnYaraLine, OnYaraExit);
             if (currentProc == null)
@@ -335,13 +328,13 @@ namespace AVUI
                 // yara64 failed to launch (deleted/blocked since the YaraReady
                 // check): OnYaraExit will never fire, so close the scan with the
                 // ClamAV result instead of leaving it half-open — a stale
-                // yaraRunning would mislabel the next scan's heartbeat, and the
+                // scan.YaraRunning would mislabel the next scan's heartbeat, and the
                 // RAM dumps/list files would never be cleaned up
-                yaraRunning = false;
+                scan.YaraRunning = false;
                 FinishScan(clamCode);
                 return;
             }
-            if (!monitorScan)
+            if (!scan.Monitor)
             {
                 // the bar restarts from 0 for this phase (the ClamAV part just
                 // showed 100%) and climbs again as yara reads through the files
@@ -391,8 +384,8 @@ namespace AVUI
         // process has read vs the list's total size.
         void YaraProgressTick()
         {
-            if (!yaraRunning) { yaraProgressTimer.Stop(); return; }
-            long total = System.Threading.Interlocked.Read(ref yaraTotalBytes);
+            if (!scan.YaraRunning) { yaraProgressTimer.Stop(); return; }
+            long total = System.Threading.Interlocked.Read(ref scan.YaraTotalBytes);
             Process p = currentProc;
             if (total <= 0 || p == null) return;
             IO_COUNTERS io;
@@ -401,11 +394,11 @@ namespace AVUI
             long read = io.ReadTransferCount > long.MaxValue ? long.MaxValue : (long)io.ReadTransferCount;
             if (read > total) read = total;
             double f = YaraProgressFraction(read, total);
-            yaraLastFraction = f;
+            scan.YaraLastFraction = f;
             progress.SetFraction(f);
             shield.SetProgress(f);
             string eta = "";
-            double elapsed = (DateTime.Now - yaraPhaseStart).TotalSeconds;
+            double elapsed = (DateTime.Now - scan.YaraPhaseStart).TotalSeconds;
             if (elapsed > 15 && read > 0)
                 eta = Lang.T("eta.remainingPrefix")
                     + "~" + FormatSpan(TimeSpan.FromSeconds((total - read) / (read / elapsed)));
@@ -431,47 +424,45 @@ namespace AVUI
             return true;
         }
 
-        int yaraErrLines; // non-match output lines this phase (warnings, unreadable files)
-
         void OnYaraLine(string line)
         {
             if (string.IsNullOrEmpty(line)) return;
-            lastScanOutput = DateTime.Now;
+            scan.LastOutput = DateTime.Now;
             string rule, path;
             if (ParseYaraMatch(line, out rule, out path))
             {
-                if (!yaraMatches.ContainsKey(path)) yaraMatches[path] = rule;
+                if (!scan.YaraMatches.ContainsKey(path)) scan.YaraMatches[path] = rule;
             }
             else
             {
                 // rule warnings / unreadable files: show a few, then just count —
                 // a folder of locked files must not flood the log with error lines
-                yaraErrLines++;
-                if (yaraErrLines <= 3) AppendLog(line + "\r\n", Theme.Warn, "WARN", true);
+                scan.YaraErrLines++;
+                if (scan.YaraErrLines <= 3) AppendLog(line + "\r\n", Theme.Warn, "WARN", true);
             }
         }
 
         void OnYaraExit(int code)
         {
-            yaraRunning = false;
+            scan.YaraRunning = false;
             if (yaraProgressTimer != null) yaraProgressTimer.Stop();
             // Stop pressed mid-phase (StopCurrent set the cancel flag and killed
             // yara64): the match list is partial — acting on it would quarantine
             // or hold back files from a scan the user abandoned. Finish as
             // interrupted, the same way a stop during the ClamAV phase does.
-            if (cancelScanListing)
+            if (scan.Cancel)
             {
                 AppendLog(Lang.T("log.cancelled"), Theme.Warn);
                 FinishScan(2);
                 return;
             }
             int extra = 0, pending = 0;
-            foreach (KeyValuePair<string, string> kv in yaraMatches)
+            foreach (KeyValuePair<string, string> kv in scan.YaraMatches)
             {
                 string path = kv.Key;
                 string threat = "YARA:" + kv.Value;
                 bool known = false;
-                foreach (string[] ff in foundFiles)
+                foreach (string[] ff in scan.FoundFiles)
                     if (string.Equals(ff[0], path, StringComparison.OrdinalIgnoreCase)) { known = true; break; }
                 if (known) continue; // ClamAV already reported this file
                 bool isMemDump = memDumpDir != null && IsUnder(path, memDumpDir);
@@ -488,31 +479,31 @@ namespace AVUI
                 if (hash != null && VtQueueFile(path, hash))
                 {
                     pending++;
-                    vtPendingYara[path] = new string[] { threat, currentScanDesc };
+                    vtPendingYara[path] = new string[] { threat, scan.Desc };
                     AppendLog(string.Format(Lang.T("log.yaraSuspiciousPending"), path, threat), Theme.Warn, "WARN", false);
                     continue;
                 }
                 extra++;
-                foundCount++;
+                scan.Found++;
                 AppendLog(path + ": " + threat + " FOUND\r\n", Theme.Danger, "INFECTED", false);
                 if (chkQuarantine.Checked)
                 {
-                    if (QuarantineFile(path, threat, currentScanDesc)) movedCount++;
+                    if (QuarantineFile(path, threat, scan.Desc)) scan.Moved++;
                 }
-                foundFiles.Add(new string[] { path, threat }); // threat dialog skips files already moved
+                scan.FoundFiles.Add(new string[] { path, threat }); // threat dialog skips files already moved
             }
-            if (yaraErrLines > 3)
-                AppendLog(string.Format(Lang.T("log.yaraMoreErrors"), yaraErrLines - 3), Theme.Warn, "WARN", true);
+            if (scan.YaraErrLines > 3)
+                AppendLog(string.Format(Lang.T("log.yaraMoreErrors"), scan.YaraErrLines - 3), Theme.Warn, "WARN", true);
             if (extra == 0 && pending == 0)
             {
                 if (code != 0) AppendLog(string.Format(Lang.T("log.yaraExitCode"), code), Theme.Warn, "WARN", true);
-                AppendLog(Lang.T("log.yaraClean"), monitorScan ? Theme.Muted : Theme.Good, "OK", monitorScan);
+                AppendLog(Lang.T("log.yaraClean"), scan.Monitor ? Theme.Muted : Theme.Good, "OK", scan.Monitor);
             }
             else if (extra > 0)
                 AppendLog(string.Format(Lang.T("log.yaraFound"), extra), Theme.Danger, "INFECTED", false);
             if (pending > 0)
                 AppendLog(string.Format(Lang.T("log.yaraPendingCount"), pending), Theme.Warn, "WARN", false);
-            int final = yaraClamCode;
+            int final = scan.YaraClamCode;
             if (extra > 0 && final == 0) final = 1; // YARA findings surface the threat flow
             FinishScan(final);
         }

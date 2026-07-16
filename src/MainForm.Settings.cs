@@ -183,7 +183,7 @@ namespace AVUI
                         string.Format(Lang.T("hero.dbStaleSub"), DbDateString(newest)));
                 else
                     SetHero(ShieldState.Ok, Lang.T("hero.protected"), string.Format(Lang.T("hero.dbFrom"), DbDateString(newest)));
-                SetScanEnabled(!scanRunning && !updateRunning);
+                SetScanEnabled(!scan.Running && !updateRunning);
             }
             else
             {

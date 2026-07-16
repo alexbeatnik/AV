@@ -231,10 +231,10 @@ namespace AVUI
         }
 
         // Asks the user what to do with each detected threat
-        void ShowThreatDialog() { ShowThreatDialog(foundFiles); }
+        void ShowThreatDialog() { ShowThreatDialog(scan.FoundFiles); }
 
         // threats: {path, threat name, [scan description]} — the optional third
-        // element overrides currentScanDesc for the quarantine record, so late
+        // element overrides scan.Desc for the quarantine record, so late
         // VirusTotal verdicts keep the scan they actually came from
         void ShowThreatDialog(List<string[]> threats)
         {
@@ -299,8 +299,8 @@ namespace AVUI
                     foreach (var it in picked())
                     {
                         string[] meta = (string[])it.Tag;
-                        string desc = meta.Length > 2 ? meta[2] : currentScanDesc;
-                        if (QuarantineFile(meta[0], meta[1], desc)) { movedCount++; list.Items.Remove(it); }
+                        string desc = meta.Length > 2 ? meta[2] : scan.Desc;
+                        if (QuarantineFile(meta[0], meta[1], desc)) { scan.Moved++; list.Items.Remove(it); }
                     }
                     SaveSettings();
                     UpdateStatsUi();
