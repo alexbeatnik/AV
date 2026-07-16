@@ -222,6 +222,7 @@ namespace AVUI
             menu.Renderer = new ToolStripProfessionalRenderer(new DarkMenuColors());
             menu.ForeColor = Theme.Text;
             trayOpenItem = menu.Items.Add(Lang.T("tray.open"), null, delegate { RestoreFromTray(); });
+            BuildPauseMenu(menu); // "Pause protection" (1/2/5 h, until restart) + RESUME
             trayExitItem = menu.Items.Add(Lang.T("tray.exit"), null, delegate { reallyClose = true; Close(); });
             tray.ContextMenuStrip = menu;
 
@@ -1496,10 +1497,11 @@ namespace AVUI
             setStatusVals[1].ForeColor = db && !DbIsStale(dbNewest, DateTime.Now) ? Theme.Good : Theme.Warn;
 
             bool mon = chkMonitor.Checked;
-            setStatusVals[2].Text = mon
-                ? Lang.T("sval.enabled") + " (" + watchDirs.Count + ")"
+            bool paused = ProtectionPaused;
+            setStatusVals[2].Text = paused ? Lang.T("sval.paused")
+                : mon ? Lang.T("sval.enabled") + " (" + watchDirs.Count + ")"
                 : Lang.T("sval.disabled");
-            setStatusVals[2].ForeColor = mon ? Theme.Good : Theme.Muted;
+            setStatusVals[2].ForeColor = paused ? Theme.Warn : mon ? Theme.Good : Theme.Muted;
 
             int q = QuarantineCount();
             setStatusVals[3].Text = string.Format(Lang.T("sval.filesN"), q);
@@ -1590,6 +1592,7 @@ namespace AVUI
 
             trayOpenItem.Text = Lang.T("tray.open");
             trayExitItem.Text = Lang.T("tray.exit");
+            ApplyPauseLanguage();
 
             RefreshDbStatus();
             UpdateStatsUi();

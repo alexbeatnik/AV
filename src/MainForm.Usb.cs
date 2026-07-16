@@ -54,6 +54,7 @@ namespace AVUI
         void OfferUsbScan(string root)
         {
             if (chkUsbPrompt == null || !chkUsbPrompt.Checked) return;
+            if (ProtectionPaused) return; // the user asked for quiet — no prompts either
             if (clamDir == null || !DbExists()) return; // nothing to scan with yet
             try
             {

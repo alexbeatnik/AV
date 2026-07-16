@@ -631,6 +631,26 @@ namespace AVUI
             // Save-failure diagnostics
             A("log.settingsSaveFailed", "Failed to save settings: {0}\r\n", "Не вдалося зберегти налаштування: {0}\r\n");
             A("log.vtKeySaveFailed", "Failed to save the API key: {0}\r\n", "Не вдалося зберегти API-ключ: {0}\r\n");
+
+            // Pausing protection (tray menu: 1/2/5 hours or until the app restarts)
+            A("tray.pauseMenu", "Pause protection", "Призупинити захист");
+            A("pause.for1h", "For 1 hour", "На 1 годину");
+            A("pause.for2h", "For 2 hours", "На 2 години");
+            A("pause.for5h", "For 5 hours", "На 5 годин");
+            A("pause.untilRestart", "Until restart", "До перезавантаження");
+            A("tray.resumeProtection", "Resume protection", "Відновити захист");
+            A("pause.untilTime", "until {0}", "до {0}");
+            A("pause.untilRestartText", "until restart", "до перезавантаження");
+            A("hero.paused", "Protection paused", "Захист призупинено");
+            A("hero.pausedSub", "Monitoring, scheduled and USB checks are off ({0})",
+                "Моніторинг, планові та USB-перевірки вимкнено ({0})");
+            A("log.protectionPaused", "Protection paused ({0}): monitoring, scheduled scans and USB checks are off. Manual scans and database updates keep working.\r\n",
+                "Захист призупинено ({0}): моніторинг, планові скани та USB-перевірки вимкнено. Ручні сканування та оновлення баз працюють.\r\n");
+            A("msg.protectionPaused", "Protection paused ({0}).", "Захист призупинено ({0}).");
+            A("log.protectionResumed", "Protection resumed: monitoring and scheduled scans are active again.\r\n",
+                "Захист відновлено: моніторинг і планові скани знову активні.\r\n");
+            A("msg.protectionResumed", "Protection resumed.", "Захист відновлено.");
+            A("sval.paused", "Paused", "Призупинено");
         }
     }
 }

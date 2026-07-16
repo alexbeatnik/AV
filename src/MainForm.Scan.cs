@@ -300,6 +300,7 @@ namespace AVUI
         void MaybeRunScheduledScan()
         {
             if (!ScheduledScanDue(schedMode, lastScheduledScan, DateTime.Now)) return;
+            if (ProtectionPaused) return; // stays due — starts once protection resumes
             if (scan.Running || updateRunning || startingEngine || clamDir == null || !DbExists()) return;
             if (!NativeMethods.IsWindowEnabled(Handle)) return; // a dialog is open — retry on a later tick
             RunQuickScan();

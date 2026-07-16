@@ -203,6 +203,9 @@ namespace AVUI
                     if (got + vtPendingYara.Count > 0)
                         shield.SetProgress((double)got / (got + vtPendingYara.Count));
                 }
+                else if (ProtectionPaused)
+                    SetHero(ShieldState.Warning, Lang.T("hero.paused"),
+                        string.Format(Lang.T("hero.pausedSub"), PauseDescription()));
                 else if (stale)
                     SetHero(ShieldState.Warning, Lang.T("hero.dbStale"),
                         string.Format(Lang.T("hero.dbStaleSub"), DbDateString(newest)));

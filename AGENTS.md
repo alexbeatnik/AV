@@ -50,6 +50,7 @@ One `MainForm` class split into partial files by concern:
 | `src/MainForm.Settings.cs` | locating ClamAV, `settings.ini` load/save |
 | `src/MainForm.Quarantine.cs` | neutralized `.quar` storage, index, threat dialog |
 | `src/MainForm.Monitor.cs` | FileSystemWatcher monitoring, exclusions |
+| `src/MainForm.Pause.cs` | tray "Pause protection" (1/2/5 h / until restart): stops monitoring, scheduled and USB checks; auto-resume timer; not persisted — any restart restores protection |
 | `src/MainForm.Install.cs` | per-user install/uninstall, ACL fixes |
 | `src/MainForm.Usb.cs` | USB volume-arrival prompt |
 | `src/MainForm.Yara.cs` | YARA engine: yara64/Forge-rules download, the post-ClamAV scan phase (`OnScanExit` → `RunYaraPhase` → `FinishScan`); phase progress % from the process's IO read counters vs the list's total size (`YaraProgressTick`, `GetProcessIoCounters` P/Invoke) — yara64 prints nothing per file |

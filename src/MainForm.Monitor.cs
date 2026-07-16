@@ -276,6 +276,9 @@ namespace AVUI
         void StartWatchers()
         {
             StopWatchers();
+            // protection is paused — ResumeProtection restarts the watchers later;
+            // guarding here covers every entry point (toggle, folder edits, ACL fix)
+            if (ProtectionPaused) return;
             foreach (string d in watchDirs)
             {
                 if (!Directory.Exists(d)) continue;
