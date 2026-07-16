@@ -35,6 +35,17 @@ namespace AVUI
             return key;
         }
 
+        // Test seams: table-wide property tests iterate every key instead of
+        // hand-picked lists (tests/LangTests.cs). Raw returns null for a missing
+        // entry — unlike T(), which falls back to English and then to the key.
+        internal static IEnumerable<string> AllKeys() { return En.Keys; }
+        internal static int CountFor(Language lang) { return (lang == Language.Ukrainian ? Uk : En).Count; }
+        internal static string Raw(Language lang, string key)
+        {
+            string v;
+            return (lang == Language.Ukrainian ? Uk : En).TryGetValue(key, out v) ? v : null;
+        }
+
         static void A(string key, string en, string uk) { En[key] = en; Uk[key] = uk; }
 
         static Lang()

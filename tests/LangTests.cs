@@ -1,11 +1,56 @@
 // Tests for the two-language string table (src\Lang.cs).
 using System;
+using System.Text;
+using System.Text.RegularExpressions;
 using AVUI;
 
 namespace AVUI.Tests
 {
     static class LangTests
     {
+        // ---- Table-wide property tests: every entry, not hand-picked lists ----
+        // The per-feature tests below stay: they additionally assert that the
+        // Ukrainian text is a real translation (differs from English), which
+        // can't be required table-wide — brand keys are identical on purpose.
+
+        public static void TestEveryKeyExistsInBothLanguages()
+        {
+            int keys = 0;
+            foreach (string key in Lang.AllKeys())
+            {
+                keys++;
+                Assert.True(Lang.Raw(Lang.Language.Ukrainian, key) != null,
+                    key + " is missing from the Ukrainian table");
+            }
+            Assert.True(keys > 300, "the table enumerates (got " + keys + " keys)");
+            // same count + every English key present above = the key sets are equal
+            Assert.Equal(keys, Lang.CountFor(Lang.Language.Ukrainian), "no Ukrainian-only keys");
+        }
+
+        public static void TestEveryEntryKeepsItsPlaceholders()
+        {
+            // a {N} present in one language but not the other makes string.Format
+            // throw or silently drop data at the call site — for every entry the
+            // placeholder sets must match exactly
+            foreach (string key in Lang.AllKeys())
+                Assert.Equal(
+                    Placeholders(Lang.Raw(Lang.Language.English, key)),
+                    Placeholders(Lang.Raw(Lang.Language.Ukrainian, key)),
+                    key + ": {N} placeholders differ between English and Ukrainian");
+        }
+
+        // Sorted, de-duplicated list of {N} indices ("0,1,") — format specs like
+        // {0:HH:mm} count as their index; alignment/format details may differ
+        static string Placeholders(string s)
+        {
+            var seen = new System.Collections.Generic.SortedDictionary<int, bool>();
+            foreach (Match m in Regex.Matches(s, "\\{(\\d+)"))
+                seen[int.Parse(m.Groups[1].Value)] = true;
+            var sb = new StringBuilder();
+            foreach (var kv in seen) sb.Append(kv.Key).Append(',');
+            return sb.ToString();
+        }
+
         public static void TestEnglishLookup()
         {
             using (new LangScope(Lang.Language.English))
