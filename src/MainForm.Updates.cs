@@ -547,7 +547,7 @@ namespace AVUI
                 colors[3] = Theme.Warn;
             }
 
-            // VirusTotal: enabled with a key / no key yet / switched off
+            // VirusTotal: enabled with a key / no key yet / switched off / offline
             caps[4] = Lang.T("stat.virustotal");
             if (vtApiKey.Length == 0)
             {
@@ -559,11 +559,25 @@ namespace AVUI
                 vals[4] = Lang.T("sval.disabled");
                 colors[4] = Theme.Muted;
             }
+            else if (!NetOnline())
+            {
+                vals[4] = Lang.T("sval.vtOffline");
+                colors[4] = Theme.Warn;
+            }
             else
             {
                 vals[4] = "✓ " + Lang.T("sval.enabled");
                 colors[4] = Theme.Good;
             }
+        }
+
+        // "Is there any network at all?" — cheap local check (no probe request).
+        // Can stay true behind a captive portal or with virtual adapters up, but
+        // catches the common cases: Wi-Fi off, cable unplugged, airplane mode.
+        internal static bool NetOnline()
+        {
+            try { return System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable(); }
+            catch { return true; } // if the check itself fails, don't cry offline
         }
 
         static long RemoteCvdVersion(string url)
