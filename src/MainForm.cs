@@ -120,7 +120,7 @@ namespace AVUI
         bool quarSortAsc = false;
         readonly List<ModernButton> scanButtons = new List<ModernButton>(); // all buttons that start a scan (both pages)
         RichTextBox log;
-        Label statusLabel, heroTitle, heroSub, langLabel, lastActivityLabel, scanProgressLabel;
+        Label statusLabel, heroTitle, heroSub, langLabel, lastActivityLabel, activityCaption, scanProgressLabel;
         ShieldIndicator shield;
         Toggle chkAutostart, chkMonitor, chkQuarantine, chkAutoUpdate, chkRiskyOnly, chkFullRisky, chkUsbPrompt, chkLogDetails, chkSkipBig;
         Toggle chkNotify; // tray notifications; threat alerts are shown regardless (see Notify)

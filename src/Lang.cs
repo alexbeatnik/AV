@@ -273,6 +273,7 @@ namespace AVUI
             A("log.threatsSuffix", ", threats: {0}", ", загроз: {0}");
 
             // Log file / history
+            A("activity.recent", "Recent activity", "Остання активність");
             A("history.empty", "No scans yet.", "Ще не було жодного сканування.");
             A("log.emptyLogFile", "The log is empty — no scans yet.", "Журнал поки порожній — ще не було жодного сканування.");
 
