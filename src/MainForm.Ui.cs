@@ -1312,6 +1312,10 @@ namespace AVUI
         void RefreshHistory()
         {
             if (lastActivityLabel == null) return;
+            // Minimizing collapses the docked layout to ~0 height; recomputing here
+            // would rewrite the text down to one line. Keep the last good text —
+            // RestoreFromTray refreshes once the real size is back.
+            if (WindowState == FormWindowState.Minimized) return;
             try
             {
                 // how many lines fit the current card height (fixed-size window, so
@@ -1647,9 +1651,13 @@ namespace AVUI
 
         void RestoreFromTray()
         {
-            ShowInTaskbar = true;
+            ShowInTaskbar = true; // recreates the handle while still minimized
             WindowState = FormWindowState.Normal;
             Activate();
+            // The handle recreation above can swallow the label's final Resize,
+            // leaving the activity card with the one-line text computed while
+            // the window was collapsed — recompute at the restored size.
+            if (pages != null && pages[0] != null && pages[0].Visible) RefreshHistory();
         }
 
         void OnFormClosing(object sender, FormClosingEventArgs e)
