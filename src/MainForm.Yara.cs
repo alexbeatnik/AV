@@ -103,15 +103,18 @@ namespace AVUI
                     System.Net.ServicePointManager.SecurityProtocol |= System.Net.SecurityProtocolType.Tls12 | Tls13;
                     Directory.CreateDirectory(YaraRulesDir);
                     Directory.CreateDirectory(YaraCustomDir);
-                    if (needExe) DownloadYaraEngine();
+                    if (needExe) DownloadYaraEngine(null);
                     else if (forceRules)
                     {
                         // the weekly rules refresh also keeps the engine current:
                         // yara64 releases a few times a year, and without this the
                         // exe installed on day one would never be updated. Any
                         // doubt (either version unreadable) means no re-download.
-                        if (YaraVersionIsNewer(LatestYaraTag(), InstalledYaraVersion()))
-                            DownloadYaraEngine();
+                        // One API round-trip: the release JSON is fetched once and
+                        // reused for both the tag (to decide) and the asset URL (to fetch).
+                        string releaseJson = FetchYaraReleaseJson();
+                        if (YaraVersionIsNewer(YaraTagFromJson(releaseJson), InstalledYaraVersion()))
+                            DownloadYaraEngine(releaseJson);
                     }
                     if (needRules) DownloadYaraForgeRules();
                 }
@@ -145,22 +148,20 @@ namespace AVUI
             th.Start();
         }
 
-        void DownloadYaraEngine()
+        // releaseJson: the latest-release JSON when the caller already fetched it
+        // (the weekly engine-version check reads the asset URL from it instead of
+        // hitting the GitHub API a second time); null = fetch it here.
+        void DownloadYaraEngine(string releaseJson)
         {
             UiLog(Lang.T("log.yaraDownloadingEngine"), Theme.Muted);
             string url = null;
-            try
+            if (releaseJson == null) releaseJson = FetchYaraReleaseJson();
+            if (releaseJson != null)
             {
-                using (var api = new System.Net.WebClient())
-                {
-                    api.Headers.Add("User-Agent", "AV");
-                    string json = api.DownloadString(YaraApiUrl);
-                    var m = Regex.Match(json, "\"browser_download_url\"\\s*:\\s*\"([^\"]+win64\\.zip)\"");
-                    if (m.Success) url = m.Groups[1].Value;
-                }
+                var m = Regex.Match(releaseJson, "\"browser_download_url\"\\s*:\\s*\"([^\"]+win64\\.zip)\"");
+                if (m.Success) url = m.Groups[1].Value;
             }
-            catch { } // API unavailable — use the pinned release
-            if (url == null) url = YaraFallbackZip;
+            if (url == null) url = YaraFallbackZip; // API unavailable — use the pinned release
             string zip = Path.Combine(YaraDir, "yara-download.zip");
             using (var wc = new System.Net.WebClient())
             {
@@ -229,28 +230,37 @@ namespace AVUI
                     // hang the setup thread (same pattern as FetchClamVersion)
                     var read = p.StandardOutput.ReadLineAsync();
                     string line = read.Wait(3000) ? read.Result : null;
-                    p.WaitForExit(3000);
+                    // kill a hung probe so a broken exe can't leave a stray process behind
+                    if (!p.WaitForExit(3000)) { try { p.Kill(); } catch { } }
                     return line;
                 }
             }
             catch { return null; }
         }
 
-        // Latest release tag ("v4.5.2") from the GitHub API; null when offline
-        // or rate-limited — the caller then simply skips the engine update.
-        static string LatestYaraTag()
+        // The latest-release JSON from the GitHub API; null when offline or
+        // rate-limited — the caller then simply skips the engine update. Fetched
+        // once per weekly refresh and shared by the tag check and the download.
+        static string FetchYaraReleaseJson()
         {
             try
             {
                 using (var api = new System.Net.WebClient())
                 {
                     api.Headers.Add("User-Agent", "AV");
-                    string json = api.DownloadString(YaraApiUrl);
-                    var m = Regex.Match(json, "\"tag_name\"\\s*:\\s*\"([^\"]+)\"");
-                    return m.Success ? m.Groups[1].Value : null;
+                    return api.DownloadString(YaraApiUrl);
                 }
             }
             catch { return null; }
+        }
+
+        // Release tag ("v4.5.2") out of the latest-release JSON; null when the
+        // JSON is missing (offline) or has no tag.
+        static string YaraTagFromJson(string json)
+        {
+            if (json == null) return null;
+            var m = Regex.Match(json, "\"tag_name\"\\s*:\\s*\"([^\"]+)\"");
+            return m.Success ? m.Groups[1].Value : null;
         }
 
         // True only when both sides parse and the remote release is strictly

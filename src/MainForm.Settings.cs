@@ -111,7 +111,8 @@ namespace AVUI
                         // prints nothing — bounded wait instead
                         var read = p.StandardOutput.ReadLineAsync(); // "ClamAV 1.5.3/27710/..."
                         string line = read.Wait(3000) ? read.Result : null;
-                        p.WaitForExit(3000);
+                        // kill a hung probe so a broken exe can't leave a stray process behind
+                        if (!p.WaitForExit(3000)) { try { p.Kill(); } catch { } }
                         if (!string.IsNullOrEmpty(line))
                             v = line.Replace("ClamAV ", "").Split('/')[0];
                     }

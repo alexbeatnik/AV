@@ -105,7 +105,13 @@ namespace AVUI
             // busy — retried tomorrow. Held-back VirusTotal verdicts count as busy
             // too: vtPendingYara lives only in memory, so restarting mid-phase-3
             // would silently drop the suspicious files awaiting their verdict.
-            if (scan.Running || updateRunning || vtPhaseRunning || vtPendingYara.Count > 0)
+            // A modal dialog open (threat dialog, engines, quarantine props) is the
+            // same hazard: swapping the exe and restarting under it would tear down
+            // an in-memory decision (scan.FoundFiles for a non-auto-quarantine scan
+            // is dropped on restart) — defer it exactly like the scheduled scan and
+            // monitor batch do (IsWindowEnabled).
+            if (scan.Running || updateRunning || vtPhaseRunning || vtPendingYara.Count > 0
+                || !NativeMethods.IsWindowEnabled(Handle))
             { TryDelete(updatePath); return; }
             ApplyAppUpdate(updatePath, version);
         }

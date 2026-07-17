@@ -323,11 +323,15 @@ namespace AVUI
             return (now - last).TotalHours >= (mode == 1 ? 24 : 168);
         }
 
-        // Quotes a command-line argument; a trailing \ before the quote must be doubled
+        // Quotes a command-line argument. Any run of backslashes immediately before
+        // the closing quote must be doubled (CommandLineToArgvW rule): otherwise a
+        // trailing "\" escapes the quote itself and the argument runs into the next.
+        // "C:\dir\" -> "C:\dir\\"; "C:\a\\" -> "C:\a\\\\".
         internal static string Quote(string path)
         {
-            if (path.EndsWith("\\")) path += "\\";
-            return "\"" + path + "\"";
+            int slashes = 0;
+            for (int i = path.Length - 1; i >= 0 && path[i] == '\\'; i--) slashes++;
+            return "\"" + path + new string('\\', slashes) + "\"";
         }
 
         // --exclude/--exclude-dir built from user exclusions + quarantine + ClamAV's own folder
