@@ -193,12 +193,52 @@ namespace AVUI
             singleInstanceMutex = new System.Threading.Mutex(true, "Local\\AV_SingleInstance_v1", out createdNew);
             if (!createdNew)
             {
+                // The broadcast reaches the instance while its window is visible or
+                // plainly minimized, but a tray-hidden window is OWNED (that's how
+                // ShowInTaskbar=false hides it) and HWND_BROADCAST skips owned
+                // windows — so the running instance must also get the message
+                // posted straight to its windows (unknown windows just ignore it).
                 NativeMethods.PostMessage((IntPtr)NativeMethods.HWND_BROADCAST, WmShow, IntPtr.Zero, IntPtr.Zero);
+                PostShowToRunningInstance();
                 return;
             }
 
             try { Application.Run(new MainForm(startInTray)); }
             finally { GC.KeepAlive(singleInstanceMutex); }
+        }
+
+        // Posts WmShow directly to every top-level window of the already-running
+        // instance (same process name, other PID). EnumWindows, unlike
+        // HWND_BROADCAST, also lists owned windows — including the tray-hidden
+        // main form. Extra hits (a message box, the IME window) ignore the
+        // registered message, so precision beyond the PID doesn't matter.
+        static void PostShowToRunningInstance()
+        {
+            var pids = new HashSet<uint>();
+            try
+            {
+                using (var self = Process.GetCurrentProcess())
+                    foreach (Process p in Process.GetProcessesByName(self.ProcessName))
+                    {
+                        try { if (p.Id != self.Id) pids.Add((uint)p.Id); }
+                        catch { }
+                        finally { try { p.Dispose(); } catch { } }
+                    }
+            }
+            catch { }
+            if (pids.Count == 0) return;
+            try
+            {
+                NativeMethods.EnumWindows(delegate(IntPtr h, IntPtr lp)
+                {
+                    uint pid;
+                    NativeMethods.GetWindowThreadProcessId(h, out pid);
+                    if (pids.Contains(pid))
+                        NativeMethods.PostMessage(h, WmShow, IntPtr.Zero, IntPtr.Zero);
+                    return true;
+                }, IntPtr.Zero);
+            }
+            catch { }
         }
 
         // ---------- Process launching ----------

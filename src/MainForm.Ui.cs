@@ -1314,8 +1314,10 @@ namespace AVUI
             if (lastActivityLabel == null) return;
             // Minimizing collapses the docked layout to ~0 height; recomputing here
             // would rewrite the text down to one line. Keep the last good text —
-            // RestoreFromTray refreshes once the real size is back.
-            if (WindowState == FormWindowState.Minimized) return;
+            // RestoreFromTray refreshes once the real size is back. IsIconic is
+            // checked too: after a ShowInTaskbar handle recreation WindowState
+            // can claim Normal while the window is still iconic (RestoreFromTray).
+            if (WindowState == FormWindowState.Minimized || NativeMethods.IsIconic(Handle)) return;
             try
             {
                 // how many lines fit the current card height (fixed-size window, so
@@ -1661,6 +1663,12 @@ namespace AVUI
         void RestoreFromTray()
         {
             ShowInTaskbar = true; // recreates the handle while still minimized
+            // After that recreation Form.WindowState can report Normal while the
+            // real window is still iconic at -32000 — the assignment below is
+            // then a no-op and the window never actually comes back. Ask the OS,
+            // not the desynced property, and restore through it.
+            if (NativeMethods.IsIconic(Handle))
+                NativeMethods.ShowWindow(Handle, NativeMethods.SW_RESTORE);
             WindowState = FormWindowState.Normal;
             Activate();
             // The handle recreation above can swallow the label's final Resize,
