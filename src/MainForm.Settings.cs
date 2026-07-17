@@ -200,8 +200,12 @@ namespace AVUI
             if (clamDir == null)
             {
                 btnUpdate.Visible = true; // here the button triggers ClamAV installation
-                SetHero(ShieldState.Danger, Lang.T("hero.clamAVNotFound"),
-                    Lang.T("hero.putPortableClamAV"));
+                // an in-flight ClamAV download owns the hero (per-stage busy
+                // texts) — a language switch mid-download must not repaint it
+                // with the red "not found" state
+                if (!updateRunning)
+                    SetHero(ShieldState.Danger, Lang.T("hero.clamAVNotFound"),
+                        Lang.T("hero.putPortableClamAV"));
                 return;
             }
             if (DbExists())
@@ -223,6 +227,14 @@ namespace AVUI
                     if (got + vtPendingYara.Count > 0)
                         shield.SetProgress((double)got / (got + vtPendingYara.Count));
                 }
+                // a running scan owns the hero the same way: the daily db-check
+                // callback and a language switch land here mid-scan, and painting
+                // the idle green/yellow state under an active scan reads as
+                // "done" while files are still being checked
+                else if (scan.Running)
+                    SetHero(ShieldState.Busy, Lang.T("hero.scanningTitle"), Lang.T("hero.scanningSub"));
+                else if (updateRunning)
+                { } // the update flow owns the hero (per-stage texts) — leave it
                 else if (ProtectionPaused)
                     SetHero(ShieldState.Warning, Lang.T("hero.paused"),
                         string.Format(Lang.T("hero.pausedSub"), PauseDescription()));
@@ -236,8 +248,11 @@ namespace AVUI
             else
             {
                 btnUpdate.Visible = true;
-                SetHero(ShieldState.Warning, Lang.T("hero.dbNeeded"),
-                    Lang.T("hero.pressUpdateFirstTime"));
+                // the first-ever database download is running — its own busy
+                // hero ("Updating database") must survive a language switch
+                if (!updateRunning)
+                    SetHero(ShieldState.Warning, Lang.T("hero.dbNeeded"),
+                        Lang.T("hero.pressUpdateFirstTime"));
                 SetScanEnabled(false);
             }
             UpdateStatsUi();

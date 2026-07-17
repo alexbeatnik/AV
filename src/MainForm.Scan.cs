@@ -277,7 +277,11 @@ namespace AVUI
                         }
                         else
                         {
-                            heroSub.Text = Lang.T("hero.dbUpdateAvailable");
+                            // mid-scan the busy hero owns the sub line; the tray
+                            // toast still tells the user, and RefreshDbStatus shows
+                            // the update state once the scan ends
+                            if (!scan.Running && !updateRunning)
+                                heroSub.Text = Lang.T("hero.dbUpdateAvailable");
                             statusLabel.Text = Lang.T("status.dbUpdateAvailablePress");
                             Notify(5000, Lang.T("tray.dbUpdateAvailablePress"), ToolTipIcon.Info);
                         }

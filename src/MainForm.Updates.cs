@@ -436,7 +436,18 @@ namespace AVUI
             updateRunning = false;
             SetBusy(false, null);
             FetchClamVersion();
-            if (err == null) updateAvailable = false; // updated — the button is no longer needed
+            if (err == null)
+            {
+                updateAvailable = false; // updated — the button is no longer needed
+                // a successful download proves the 429 cooldown is over ("try
+                // anyway") — a stale deadline must not keep blocking the daily
+                // auto-check after the server is clearly serving us again
+                if (DateTime.Now < dbCooldownUntil)
+                {
+                    dbCooldownUntil = DateTime.MinValue;
+                    SaveSettings();
+                }
+            }
             RefreshDbStatus();
             if (err == null)
             {
