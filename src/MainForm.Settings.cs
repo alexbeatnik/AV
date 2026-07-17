@@ -15,6 +15,10 @@ using Microsoft.Win32;
 
 namespace AVUI
 {
+    // Who owns the dashboard hero tile right now (see MainForm.HeroOwnerNow).
+    // Idle = nothing is in flight, the protection state may be painted.
+    internal enum HeroOwner { Idle, VtPhase, Scan, Update }
+
     public partial class MainForm : Form
     {
         // ---------- Locating ClamAV ----------
@@ -195,6 +199,19 @@ namespace AVUI
             return (now - newest).TotalDays >= DbStaleDays;
         }
 
+        // The pure priority ladder (unit-tested) behind the hero repaint paths
+        // (RefreshDbStatus, the daily db-check callback): which in-flight
+        // operation, if any, owns the hero. A held-open VirusTotal phase
+        // outranks the scan flags (FinishScan hands the visuals to the
+        // verdicts), and both outrank an update.
+        internal static HeroOwner HeroOwnerNow(bool vtPhaseRunning, bool scanRunning, bool updateRunning)
+        {
+            if (vtPhaseRunning) return HeroOwner.VtPhase;
+            if (scanRunning) return HeroOwner.Scan;
+            if (updateRunning) return HeroOwner.Update;
+            return HeroOwner.Idle;
+        }
+
         void RefreshDbStatus()
         {
             if (clamDir == null)
@@ -220,7 +237,8 @@ namespace AVUI
                 // Re-applying the busy texts keeps a language switch honest, and
                 // the verdict percent is restored because SetHero resets it;
                 // VtNotifyPendingDone brings the real protection state back
-                if (vtPhaseRunning)
+                HeroOwner owner = HeroOwnerNow(vtPhaseRunning, scan.Running, updateRunning);
+                if (owner == HeroOwner.VtPhase)
                 {
                     SetHero(ShieldState.Busy, Lang.T("hero.vtWaitTitle"), Lang.T("hero.vtWaitSub"));
                     int got = vtResolvedClean + vtResolvedFlagged;
@@ -231,9 +249,9 @@ namespace AVUI
                 // callback and a language switch land here mid-scan, and painting
                 // the idle green/yellow state under an active scan reads as
                 // "done" while files are still being checked
-                else if (scan.Running)
+                else if (owner == HeroOwner.Scan)
                     SetHero(ShieldState.Busy, Lang.T("hero.scanningTitle"), Lang.T("hero.scanningSub"));
-                else if (updateRunning)
+                else if (owner == HeroOwner.Update)
                 { } // the update flow owns the hero (per-stage texts) — leave it
                 else if (ProtectionPaused)
                     SetHero(ShieldState.Warning, Lang.T("hero.paused"),
