@@ -276,6 +276,9 @@ namespace AVUI
         void StartWatchers()
         {
             StopWatchers();
+            // protection is paused — ResumeProtection restarts the watchers later;
+            // guarding here covers every entry point (toggle, folder edits, ACL fix)
+            if (ProtectionPaused) return;
             foreach (string d in watchDirs)
             {
                 if (!Directory.Exists(d)) continue;
@@ -329,6 +332,10 @@ namespace AVUI
         void OnDebounceTick(object sender, EventArgs e)
         {
             if (scan.Running || updateRunning || !DbExists()) return; // try again on the next tick
+            // a modal dialog is open (threat dialog, a confirmation prompt): timers
+            // still tick inside modal loops, and starting a batch here would replace
+            // the scan session under the dialog — wait for a later tick instead
+            if (!NativeMethods.IsWindowEnabled(Handle)) return;
             var ready = new List<string>();
             var stillLocked = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (KeyValuePair<string, int> kvp in pendingFiles)
@@ -374,7 +381,9 @@ namespace AVUI
 
         void ScanFileBatch(List<string> files)
         {
+            bool heldPhase = vtPhaseRunning; // phase 3 this batch is about to take the UI from
             ResetScanState(Lang.T("desc.autoCheck"));
+            vtPhaseInterrupted = heldPhase;  // FinishScan restores the phase-3 visuals
             scan.Monitor = true;
             countGen++; // the total is known upfront, no background counting needed
             scan.TotalToScan = files.Count;

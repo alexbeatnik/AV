@@ -7,6 +7,10 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows_10_/_11-0078d7.svg)](https://www.microsoft.com/windows)
 [![Framework](https://img.shields.io/badge/.NET_Framework-4.8-purple.svg)](https://dotnet.microsoft.com/download/dotnet-framework/net48)
+[![Latest release](https://img.shields.io/github/v/release/alexbeatnik/AV?label=release)](../../releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/alexbeatnik/AV/total?color=success)](../../releases)
+[![Tests](https://img.shields.io/github/actions/workflow/status/alexbeatnik/AV/tests.yml?label=tests)](../../actions/workflows/tests.yml)
+![UI languages](https://img.shields.io/badge/UI-English%20%7C%20%D0%A3%D0%BA%D1%80%D0%B0%D1%97%D0%BD%D1%81%D1%8C%D0%BA%D0%B0-green)
 
 A lightweight **multi-engine antivirus for Windows** — three layers of
 detection under one portable dashboard:
@@ -15,11 +19,13 @@ detection under one portable dashboard:
 2. **YARA rules** — community heuristics from [YARA Forge](https://yarahq.github.io/)
    that catch malware families and fresh threats signatures miss;
 3. **VirusTotal** — suspicious files are checked by hash against 70+ engines,
-   so one false alarm from a heuristic rule doesn't scare you for nothing.
+   so a single false alarm from a heuristic rule doesn't turn into a
+   needless scare.
 
 The app itself is a single ~290 KB exe; the engines it orchestrates are
-fetched automatically on first run (ClamAV with its signature database
-~220 MB, YARA with its rules ~15 MB) and kept updated. Interface in
+fetched automatically on first run (the ~220 MB ClamAV package plus its
+~110 MB signature database, YARA with its rules ~10 MB) and kept updated.
+Interface in
 **English** and **Ukrainian**. Idle in the tray it uses under 15 MB of RAM;
 nothing is installed system-wide and admin rights are never required.
 
@@ -37,8 +43,8 @@ nothing is installed system-wide and admin rights are never required.
 1. Download `AV.exe` from the [latest release](../../releases/latest).
 2. Run it. The first start asks: install per-user (shortcuts, "Apps" entry,
    no admin rights) or stay portable — a single folder you can carry around.
-3. That's it. ClamAV with its signature database (~220 MB) and the YARA
-   engine + rules (~15 MB) are downloaded automatically; the app keeps them
+3. That's it. ClamAV with its signature database (~330 MB) and the YARA
+   engine + rules (~10 MB) are downloaded automatically; the app keeps them
    updated and updates itself from GitHub Releases.
 
 To get the VirusTotal layer, paste a free API key from

@@ -222,6 +222,7 @@ namespace AVUI
             menu.Renderer = new ToolStripProfessionalRenderer(new DarkMenuColors());
             menu.ForeColor = Theme.Text;
             trayOpenItem = menu.Items.Add(Lang.T("tray.open"), null, delegate { RestoreFromTray(); });
+            BuildPauseMenu(menu); // "Pause protection" (1/2/5 h, until restart) + RESUME
             trayExitItem = menu.Items.Add(Lang.T("tray.exit"), null, delegate { reallyClose = true; Close(); });
             tray.ContextMenuStrip = menu;
 
@@ -415,33 +416,52 @@ namespace AVUI
             dbStrip.Controls.Add(btnGetYara);
             dbStrip.Controls.Add(btnEnterVtKey);
 
-            // Last-activity strip: one line instead of a scrollable log card — the
-            // full history is one click away via "Open Log File", so the dashboard
-            // doesn't need to dedicate a big scrollable panel to it.
+            // Recent-activity card: fills the dashboard's leftover vertical space
+            // (a thin one-line strip wasted it, and clipped the single line against
+            // the button) and lists the last few scans at full width, so no line is
+            // cut off. The full history is still one click away via OPEN LOG FILE.
             activityRow = new StatusBanner();
-            activityRow.Dock = DockStyle.Top;
-            activityRow.Height = 56;
+            activityRow.Dock = DockStyle.Fill;
             activityRow.Margin = new Padding(6, 4, 6, 4);
-            activityRow.Padding = new Padding(20, 2, 10, 8); // bottom inset keeps children off the card shadow
+            activityRow.Padding = new Padding(20, 10, 12, 10);
             activityRow.AccentColor = Theme.Accent;
-            lastActivityLabel = new Label();
-            lastActivityLabel.Dock = DockStyle.Fill;
-            lastActivityLabel.AutoEllipsis = true;
-            // vertical padding leaves room for exactly one text line, so a long
-            // entry ellipsizes instead of wrapping mid-value ("3m" / "26s")
-            lastActivityLabel.Padding = new Padding(0, 13, 0, 13);
-            lastActivityLabel.Font = new Font("Consolas", 9f);
-            lastActivityLabel.ForeColor = Theme.Muted;
-            lastActivityLabel.BackColor = Theme.Card;
-            lastActivityLabel.TextAlign = ContentAlignment.MiddleLeft;
+
+            // header: caption on the left, OPEN LOG FILE on the right
+            var activityHeader = new Panel();
+            activityHeader.Dock = DockStyle.Top;
+            activityHeader.Height = 34;
+            activityHeader.BackColor = Theme.Card;
+            activityCaption = new Label();
+            activityCaption.Dock = DockStyle.Left;
+            activityCaption.Width = 260;
+            activityCaption.TextAlign = ContentAlignment.MiddleLeft;
+            activityCaption.Font = new Font("Segoe UI Semibold", 8.5f);
+            activityCaption.ForeColor = Theme.Muted;
+            activityCaption.BackColor = Theme.Card;
+            activityCaption.Text = Lang.T("activity.recent").ToUpperInvariant();
             // dark secondary button — a light one here outshines the primary actions above
             btnScanLog = MakeButton(Lang.T("btn.openLog"), 235, Theme.Bg, Theme.CardLine, Ico.LogIcon);
             btnScanLog.BackColor = Theme.Card;
             btnScanLog.Dock = DockStyle.Right;
             btnScanLog.Margin = new Padding(0, 0, 0, 0);
             btnScanLog.Click += delegate { OpenScanLog(); };
+            activityHeader.Controls.Add(activityCaption);
+            activityHeader.Controls.Add(btnScanLog);
+
+            lastActivityLabel = new Label();
+            lastActivityLabel.Dock = DockStyle.Fill;
+            lastActivityLabel.UseMnemonic = false; // paths/descriptions may contain "&"
+            lastActivityLabel.Padding = new Padding(0, 8, 0, 0);
+            lastActivityLabel.Font = new Font("Consolas", 9f);
+            lastActivityLabel.ForeColor = Theme.Muted;
+            lastActivityLabel.BackColor = Theme.Card;
+            lastActivityLabel.TextAlign = ContentAlignment.TopLeft;
+            // recompute the fitting line count once the label has its laid-out size.
+            // Resize fires during construction (Controls.Add lays the label out) before
+            // pages[0] is assigned, so guard the not-yet-built page reference.
+            lastActivityLabel.Resize += delegate { if (pages != null && pages[0] != null && pages[0].Visible) RefreshHistory(); };
             activityRow.Controls.Add(lastActivityLabel);
-            activityRow.Controls.Add(btnScanLog);
+            activityRow.Controls.Add(activityHeader);
 
             // Dock=Top stacks in reverse add order: the big tile mosaic first, then the
             // action tiles, the stat strip, the database strip, and the last-activity strip
@@ -1286,21 +1306,30 @@ namespace AVUI
             if (idx == 3) { RefreshSettingsStatus(); }
         }
 
-        // Shows just the last line of scans.log — the full history is one click
-        // away via "Open Log File" (see activityRow in BuildDashboardPage).
+        // Shows the last few scans.log lines, newest first, as many as fit the card
+        // without clipping — the full history is one click away via "Open Log File"
+        // (see activityRow in BuildDashboardPage).
         void RefreshHistory()
         {
             if (lastActivityLabel == null) return;
             try
             {
-                string last = null;
+                // how many lines fit the current card height (fixed-size window, so
+                // this is stable once laid out; recomputed on the card's Resize)
+                int lineH = lastActivityLabel.Font.Height + 2;
+                int avail = lastActivityLabel.ClientSize.Height - lastActivityLabel.Padding.Vertical;
+                int max = avail > lineH ? avail / lineH : 1;
+                if (max > 8) max = 8;
+                var recent = new List<string>();
                 if (File.Exists(scanLogPath))
                 {
                     string[] lines = File.ReadAllLines(scanLogPath);
-                    for (int i = lines.Length - 1; i >= 0; i--)
-                        if (lines[i].Trim().Length > 0) { last = lines[i]; break; }
+                    for (int i = lines.Length - 1; i >= 0 && recent.Count < max; i--)
+                        if (lines[i].Trim().Length > 0) recent.Add(FormatHistoryLine(lines[i]));
                 }
-                lastActivityLabel.Text = last != null ? FormatHistoryLine(last) : Lang.T("history.empty");
+                lastActivityLabel.Text = recent.Count > 0
+                    ? string.Join("\r\n", recent.ToArray())
+                    : Lang.T("history.empty");
             }
             catch { }
         }
@@ -1496,10 +1525,11 @@ namespace AVUI
             setStatusVals[1].ForeColor = db && !DbIsStale(dbNewest, DateTime.Now) ? Theme.Good : Theme.Warn;
 
             bool mon = chkMonitor.Checked;
-            setStatusVals[2].Text = mon
-                ? Lang.T("sval.enabled") + " (" + watchDirs.Count + ")"
+            bool paused = ProtectionPaused;
+            setStatusVals[2].Text = paused ? Lang.T("sval.paused")
+                : mon ? Lang.T("sval.enabled") + " (" + watchDirs.Count + ")"
                 : Lang.T("sval.disabled");
-            setStatusVals[2].ForeColor = mon ? Theme.Good : Theme.Muted;
+            setStatusVals[2].ForeColor = paused ? Theme.Warn : mon ? Theme.Good : Theme.Muted;
 
             int q = QuarantineCount();
             setStatusVals[3].Text = string.Format(Lang.T("sval.filesN"), q);
@@ -1536,6 +1566,7 @@ namespace AVUI
             dashScanRam.SubText = Lang.T("btn.scanRamSub");
             btnUpdate.Text = Lang.T("btn.updateDb");
             btnScanLog.Text = Lang.T("btn.openLog");
+            if (activityCaption != null) activityCaption.Text = Lang.T("activity.recent").ToUpperInvariant();
             if (btnQuarExclusions != null) btnQuarExclusions.Text = Lang.T("btn.exclusions");
             if (btnQuarDelete != null) btnQuarDelete.Text = Lang.T("btn.deleteForever");
             if (btnQuarRestore != null) btnQuarRestore.Text = Lang.T("btn.restore");
@@ -1590,6 +1621,7 @@ namespace AVUI
 
             trayOpenItem.Text = Lang.T("tray.open");
             trayExitItem.Text = Lang.T("tray.exit");
+            ApplyPauseLanguage();
 
             RefreshDbStatus();
             UpdateStatsUi();

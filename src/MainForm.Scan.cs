@@ -300,7 +300,11 @@ namespace AVUI
         void MaybeRunScheduledScan()
         {
             if (!ScheduledScanDue(schedMode, lastScheduledScan, DateTime.Now)) return;
+            if (ProtectionPaused) return; // stays due — starts once protection resumes
             if (scan.Running || updateRunning || startingEngine || clamDir == null || !DbExists()) return;
+            // a finished scan still visually in phase 3 (VirusTotal verdicts
+            // pending) must not be cut short by a timer — stays due, retried
+            if (vtPhaseRunning) return;
             if (!NativeMethods.IsWindowEnabled(Handle)) return; // a dialog is open — retry on a later tick
             RunQuickScan();
             if (!scan.Running) return; // didn't start — stays due, retried on the next tick
@@ -319,11 +323,15 @@ namespace AVUI
             return (now - last).TotalHours >= (mode == 1 ? 24 : 168);
         }
 
-        // Quotes a command-line argument; a trailing \ before the quote must be doubled
+        // Quotes a command-line argument. Any run of backslashes immediately before
+        // the closing quote must be doubled (CommandLineToArgvW rule): otherwise a
+        // trailing "\" escapes the quote itself and the argument runs into the next.
+        // "C:\dir\" -> "C:\dir\\"; "C:\a\\" -> "C:\a\\\\".
         internal static string Quote(string path)
         {
-            if (path.EndsWith("\\")) path += "\\";
-            return "\"" + path + "\"";
+            int slashes = 0;
+            for (int i = path.Length - 1; i >= 0 && path[i] == '\\'; i--) slashes++;
+            return "\"" + path + new string('\\', slashes) + "\"";
         }
 
         // --exclude/--exclude-dir built from user exclusions + quarantine + ClamAV's own folder
@@ -418,6 +426,7 @@ namespace AVUI
             scan.Desc = desc;
             scan.Started = DateTime.Now;
             vtPhaseRunning = false;    // a new scan takes over the UI from a held-open phase 3
+            vtPhaseInterrupted = false; // ScanFileBatch re-sets it right after when applicable
         }
 
         // Quick scan: risky file types in common infection points (downloads, desktop,
@@ -1113,6 +1122,7 @@ namespace AVUI
             scan.Running = false;
             scan.Monitor = false;
             countGen++; // stop the background file counter
+            int initialTotal = scan.InitialTotal; // read before the reset below — the summary needs it
             scan.TotalToScan = 0;
             scan.InitialTotal = 0;
             StopClamd(); // the daemon lives only for the duration of the scan
@@ -1131,9 +1141,9 @@ namespace AVUI
                     AppendLog(string.Format(Lang.T("log.phaseTiming"),
                         FormatSpan(scan.YaraPhaseStart - scan.Started), FormatSpan(DateTime.Now - scan.YaraPhaseStart)),
                         Theme.Muted, null, false);
-                if (scan.Scanned < scan.InitialTotal)
+                if (scan.Scanned < initialTotal)
                 {
-                    int skipped = scan.InitialTotal - scan.Scanned;
+                    int skipped = initialTotal - scan.Scanned;
                     AppendLog(string.Format(Lang.T("log.skippedExplanation"), skipped), Theme.Muted, null, false);
                 }
             }
@@ -1170,6 +1180,18 @@ namespace AVUI
                         // verdicts) is still running. Keep the busy hero and drive the
                         // progress by verdicts received; VtNotifyPendingDone closes
                         // the scan and shows the completion toast
+                        vtPhaseRunning = true;
+                        SetHero(ShieldState.Busy, Lang.T("hero.vtWaitTitle"), Lang.T("hero.vtWaitSub"));
+                        double f = (double)got / (got + vtPendingYara.Count);
+                        progress.SetFraction(f);
+                        shield.SetProgress(f);
+                    }
+                    else if (vtPhaseInterrupted)
+                    {
+                        // this monitor batch had interrupted a finished scan's
+                        // held-open phase 3 — hand the busy hero and the
+                        // verdict-driven progress back instead of leaving the
+                        // hero green while verdicts are still outstanding
                         vtPhaseRunning = true;
                         SetHero(ShieldState.Busy, Lang.T("hero.vtWaitTitle"), Lang.T("hero.vtWaitSub"));
                         double f = (double)got / (got + vtPendingYara.Count);

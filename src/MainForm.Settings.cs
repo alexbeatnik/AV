@@ -66,6 +66,25 @@ namespace AVUI
             }
             FetchClamVersion();
             AppendLog(string.Format(Lang.T("log.clamAVPath"), clamDir), Theme.Muted);
+            // Installs made by older versions kept the zip's ~760 MB of build-time
+            // artifacts (.pdb debug symbols, clamav_rust.lib) that nothing reads at
+            // runtime — newer installs drop them during extraction (ExtractClamZip),
+            // this sweeps them out of existing ones. Only our own download target
+            // (<exe>\clamav) is touched; a hand-assembled ClamAV elsewhere
+            // (Program Files, ..\clamav) is left alone. No-op when already clean.
+            if (string.Equals(clamDir, Path.Combine(baseDir, "clamav"), StringComparison.OrdinalIgnoreCase))
+            {
+                string sweep = clamDir;
+                System.Threading.ThreadPool.QueueUserWorkItem(delegate
+                {
+                    try
+                    {
+                        foreach (string f in Directory.GetFiles(sweep, "*.pdb")) TryDelete(f);
+                        foreach (string f in Directory.GetFiles(sweep, "*.lib")) TryDelete(f);
+                    }
+                    catch { } // locked/read-only — retried on the next start
+                });
+            }
         }
 
         // Reads "clamscan --version" on a worker thread: mapping the exe can be
@@ -92,7 +111,8 @@ namespace AVUI
                         // prints nothing — bounded wait instead
                         var read = p.StandardOutput.ReadLineAsync(); // "ClamAV 1.5.3/27710/..."
                         string line = read.Wait(3000) ? read.Result : null;
-                        p.WaitForExit(3000);
+                        // kill a hung probe so a broken exe can't leave a stray process behind
+                        if (!p.WaitForExit(3000)) { try { p.Kill(); } catch { } }
                         if (!string.IsNullOrEmpty(line))
                             v = line.Replace("ClamAV ", "").Split('/')[0];
                     }
@@ -203,6 +223,9 @@ namespace AVUI
                     if (got + vtPendingYara.Count > 0)
                         shield.SetProgress((double)got / (got + vtPendingYara.Count));
                 }
+                else if (ProtectionPaused)
+                    SetHero(ShieldState.Warning, Lang.T("hero.paused"),
+                        string.Format(Lang.T("hero.pausedSub"), PauseDescription()));
                 else if (stale)
                     SetHero(ShieldState.Warning, Lang.T("hero.dbStale"),
                         string.Format(Lang.T("hero.dbStaleSub"), DbDateString(newest)));

@@ -103,7 +103,19 @@ namespace AVUI
                     System.Net.ServicePointManager.SecurityProtocol |= System.Net.SecurityProtocolType.Tls12 | Tls13;
                     Directory.CreateDirectory(YaraRulesDir);
                     Directory.CreateDirectory(YaraCustomDir);
-                    if (needExe) DownloadYaraEngine();
+                    if (needExe) DownloadYaraEngine(null);
+                    else if (forceRules)
+                    {
+                        // the weekly rules refresh also keeps the engine current:
+                        // yara64 releases a few times a year, and without this the
+                        // exe installed on day one would never be updated. Any
+                        // doubt (either version unreadable) means no re-download.
+                        // One API round-trip: the release JSON is fetched once and
+                        // reused for both the tag (to decide) and the asset URL (to fetch).
+                        string releaseJson = FetchYaraReleaseJson();
+                        if (YaraVersionIsNewer(YaraTagFromJson(releaseJson), InstalledYaraVersion()))
+                            DownloadYaraEngine(releaseJson);
+                    }
                     if (needRules) DownloadYaraForgeRules();
                 }
                 catch (Exception ex) { err = ex.Message; }
@@ -136,22 +148,20 @@ namespace AVUI
             th.Start();
         }
 
-        void DownloadYaraEngine()
+        // releaseJson: the latest-release JSON when the caller already fetched it
+        // (the weekly engine-version check reads the asset URL from it instead of
+        // hitting the GitHub API a second time); null = fetch it here.
+        void DownloadYaraEngine(string releaseJson)
         {
             UiLog(Lang.T("log.yaraDownloadingEngine"), Theme.Muted);
             string url = null;
-            try
+            if (releaseJson == null) releaseJson = FetchYaraReleaseJson();
+            if (releaseJson != null)
             {
-                using (var api = new System.Net.WebClient())
-                {
-                    api.Headers.Add("User-Agent", "AV");
-                    string json = api.DownloadString(YaraApiUrl);
-                    var m = Regex.Match(json, "\"browser_download_url\"\\s*:\\s*\"([^\"]+win64\\.zip)\"");
-                    if (m.Success) url = m.Groups[1].Value;
-                }
+                var m = Regex.Match(releaseJson, "\"browser_download_url\"\\s*:\\s*\"([^\"]+win64\\.zip)\"");
+                if (m.Success) url = m.Groups[1].Value;
             }
-            catch { } // API unavailable — use the pinned release
-            if (url == null) url = YaraFallbackZip;
+            if (url == null) url = YaraFallbackZip; // API unavailable — use the pinned release
             string zip = Path.Combine(YaraDir, "yara-download.zip");
             using (var wc = new System.Net.WebClient())
             {
@@ -200,6 +210,82 @@ namespace AVUI
             foreach (string f in Directory.GetFiles(dir, name, SearchOption.AllDirectories))
                 return f;
             return null;
+        }
+
+        // ---------- Engine version check (piggybacks on the weekly refresh) ----------
+
+        // "yara64.exe --version" prints a bare "4.5.2"; null when the exe is
+        // missing/broken or prints nothing in time. Called on the setup thread.
+        string InstalledYaraVersion()
+        {
+            try
+            {
+                var psi = new ProcessStartInfo(YaraExe, "--version");
+                psi.UseShellExecute = false;
+                psi.CreateNoWindow = true;
+                psi.RedirectStandardOutput = true;
+                using (var p = Process.Start(psi))
+                {
+                    // bounded wait — a broken exe that prints nothing must not
+                    // hang the setup thread (same pattern as FetchClamVersion)
+                    var read = p.StandardOutput.ReadLineAsync();
+                    string line = read.Wait(3000) ? read.Result : null;
+                    // kill a hung probe so a broken exe can't leave a stray process behind
+                    if (!p.WaitForExit(3000)) { try { p.Kill(); } catch { } }
+                    return line;
+                }
+            }
+            catch { return null; }
+        }
+
+        // The latest-release JSON from the GitHub API; null when offline or
+        // rate-limited — the caller then simply skips the engine update. Fetched
+        // once per weekly refresh and shared by the tag check and the download.
+        static string FetchYaraReleaseJson()
+        {
+            try
+            {
+                using (var api = new System.Net.WebClient())
+                {
+                    api.Headers.Add("User-Agent", "AV");
+                    return api.DownloadString(YaraApiUrl);
+                }
+            }
+            catch { return null; }
+        }
+
+        // Release tag ("v4.5.2") out of the latest-release JSON; null when the
+        // JSON is missing (offline) or has no tag.
+        static string YaraTagFromJson(string json)
+        {
+            if (json == null) return null;
+            var m = Regex.Match(json, "\"tag_name\"\\s*:\\s*\"([^\"]+)\"");
+            return m.Success ? m.Groups[1].Value : null;
+        }
+
+        // True only when both sides parse and the remote release is strictly
+        // newer — any doubt means no re-download (a needless engine swap risks
+        // racing a scan for nothing).
+        internal static bool YaraVersionIsNewer(string remoteTag, string localVersion)
+        {
+            Version remote = ParseYaraVersion(remoteTag);
+            Version local = ParseYaraVersion(localVersion);
+            return remote != null && local != null && remote > local;
+        }
+
+        // Tolerates a leading "v" and surrounding chatter: "v4.5.2", "4.5.2",
+        // "yara 4.5.2 (build)" all yield 4.5.2; null when nothing version-like.
+        internal static Version ParseYaraVersion(string s)
+        {
+            if (s == null) return null;
+            var m = Regex.Match(s, "(\\d+)\\.(\\d+)(?:\\.(\\d+))?");
+            if (!m.Success) return null;
+            try
+            {
+                return new Version(int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value),
+                    m.Groups[3].Success ? int.Parse(m.Groups[3].Value) : 0);
+            }
+            catch { return null; } // digits too long for int — treat as unparsable
         }
 
         // Weekly rules refresh, piggybacking on the hourly auto-update timer
@@ -466,17 +552,21 @@ namespace AVUI
                     if (string.Equals(ff[0], path, StringComparison.OrdinalIgnoreCase)) { known = true; break; }
                 if (known) continue; // ClamAV already reported this file
                 bool isMemDump = memDumpDir != null && IsUnder(path, memDumpDir);
-                string hash = null;
+                // Cheap readability probe only — the actual SHA256 is computed by
+                // the lookup worker off the UI thread (VtQueueFile accepts a null
+                // hash): hashing a multi-GB match here used to freeze the UI.
+                bool readable = false;
                 if (VtActive && !isMemDump)
                 {
-                    try { hash = Sha256OfQuarFile(path); } catch { }
+                    try { using (File.OpenRead(path)) { } readable = true; } catch { }
                 }
                 // One community-rule match is a suspicion, not a verdict — Forge
                 // rules do hit legitimate packers/installers. When VirusTotal can
                 // arbitrate, hold the file untouched until the hash verdict arrives
                 // (ResolvePendingYara). RAM dumps can't wait: their temp files are
-                // deleted right after the scan, so they take the immediate path.
-                if (hash != null && VtQueueFile(path, hash))
+                // deleted right after the scan, so they take the immediate path;
+                // so does a file we can't even read (locked — hashing would fail).
+                if (readable && VtQueueFile(path, null))
                 {
                     pending++;
                     vtPendingYara[path] = new string[] { threat, scan.Desc };

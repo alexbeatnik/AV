@@ -24,8 +24,10 @@ exactly these two scripts on every PR. Releases are published by
 ## Resource & performance profile
 
 * **Executable size:** ~290 KB (single portable EXE, zero dependencies)
-* **Downloads footprint:** ClamAV binary assets and database (~220 MB total)
-  + YARA core ruleset (~15 MB total)
+* **Downloads footprint:** the ClamAV zip (~220 MB) + signature database
+  (~110 MB) + YARA engine and core ruleset (~10 MB). The zip's build-time
+  artifacts (.pdb symbols, clamav_rust.lib — ~760 MB unpacked) are deleted
+  during extraction, so the on-disk install stays ~250 MB
 * **Typical memory profile:**
   * **While idle:** < 15 MB RAM (in system tray)
   * **While scanning:** ~80 MB RAM for the coordinator UI (`AV.exe`).
@@ -36,27 +38,30 @@ exactly these two scripts on every PR. Releases are published by
 
 ## Scan architecture & flow
 
+Every scan is a sequence of phases over the same file list; a ClamAV
+signature match is a verdict in itself and never waits for arbitration,
+while a YARA-only match is just a suspicion that VirusTotal referees:
+
 ```
-               Scan Input (Disk / RAM / New File Event)
-                                 │
-                        ┌────────┴────────┐
-                        ▼                 ▼
-                     ClamAV              YARA
-                   Signatures         Heuristics
-                        │                 │
-                        └────────┬────────┘
-                                 ▼
-                             Suspicion
+          Scan input (disk walk / RAM dumps / new-file events)
                                  │
                                  ▼
-                            VirusTotal
-                            Arbitration
-                                 │
+   Phase 1 · ClamAV signatures ──(match)──────────► threat dialog /
+                                 │                  auto-quarantine
+                            (no match)
                                  ▼
-                          Threat Decision
-                        ┌────────┴────────┐
-                        ▼                 ▼
-                     Quarantine         Exclusion
+   Phase 2 · YARA heuristics ──(no match)─────────► clean, scan ends
+                                 │
+                      (rule match = suspicion,
+                       file held untouched)
+                                 ▼
+   Phase 3 · VirusTotal hash arbitration
+     ├─ ≥ 3 engines flag it ──────────────────────► threat dialog / auto-quarantine
+     ├─ clean (0 flags, 20+ verdicts) ────────────► released — likely false positive
+     └─ unknown / inconclusive / unreachable ─────► user decides (or auto-quarantine)
+
+   Quarantined files are stored neutralized: XOR-transformed .quar blobs
+   that can't run and don't trip other antiviruses (reversible).
 ```
 
 ## How the three engines work together
@@ -107,50 +112,15 @@ deleted when the scan ends, so they go straight to the threat flow.
 The YARA engine (`yara64.exe`, from the official
 [VirusTotal/yara](https://github.com/VirusTotal/yara) releases) and the YARA
 Forge *core* rule set are downloaded automatically on first run and the rules
-are refreshed weekly. Custom rules go into `yara\rules\custom\`.
+are refreshed weekly (matching YARA Forge's weekly release cadence); the same
+weekly pass also re-downloads `yara64.exe` itself when VirusTotal has shipped
+a newer release. Custom rules go into `yara\rules\custom\`.
 
 Everything is configured in **Settings → DETECTION ENGINES…** — the
 YARA toggle and rules maintenance, and the VirusTotal API key with the
 hash-check and upload toggles. The quarantine **Properties** dialog and the
 **threat dialog** also have a VIRUSTOTAL button that opens the file's public
 VT page in the browser — that works without any API key.
-
-## Security design pipeline
-
-Every scanned file follows a multi-stage defense-in-depth pipeline to isolate
-and eliminate threats efficiently while minimizing performance impact and
-preventing false positives on clean files:
-
-```
-          [ Threat Sources (Disk / RAM / Folder Monitor) ]
-                                 │
-                                 ▼
-                     ┌───────────────────────┐
-                     │ 1. Signature Engine   │ ──(Threat Found)──► [ Auto-Quarantine / Alert ]
-                     │    (ClamAV CVD/CLD)   │
-                     └───────────────────────┘
-                                 │
-                            (No matches)
-                                 ▼
-                     ┌───────────────────────┐
-                     │ 2. Heuristics Engine  │ ──(No matches)────► [ Target Allowed (Clean) ]
-                     │    (YARA ruleset)     │
-                     └───────────────────────┘
-                                 │
-                            (Suspicious)
-                                 ▼
-                     ┌───────────────────────┐
-                     │ 3. Cloud Reputation   │ ──(Clean / 0 flags)► [ Left in Place (False Pos.)]
-                     │  (VirusTotal Hash API)│
-                     └───────────────────────┘
-                                 │
-                           (≥ 3 Engines)
-                                 ▼
-                     [ Threat Verdict Confirmed ]
-                                 │
-                                 ▼
-                     [ Neutralized Quarantine / XOR ]
-```
 
 ## Project structure
 
@@ -165,7 +135,7 @@ src/                       — the application (WinForms, C# 5), one portable ex
   Lang.cs                  — English/Ukrainian string table
 tests/                     — unit tests + zero-dependency test runner
 build.ps1 / test.ps1       — zero-toolchain build scripts
-app.ico / logo.png         — placeholder shield icon (temporary branding)
+app.ico / logo.png         — the AV logo, embedded into the exe at build time
 clamav/                    — portable ClamAV (not in git, downloaded)
 yara/                      — yara64.exe + rules (not in git, downloaded)
 quarantine/                — neutralized (.quar) files + index

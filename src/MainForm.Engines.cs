@@ -16,6 +16,9 @@ namespace AVUI
     {
         void ShowEnginesDialog()
         {
+            // UPDATE RULES NOW must flip the live flag for the download to start;
+            // this snapshot lets Cancel take that implicit enable back
+            bool yaraWasEnabled = yaraEnabled;
             using (var dlg = new Form())
             {
                 dlg.Text = Lang.T("engines.title");
@@ -278,7 +281,21 @@ namespace AVUI
                 dlg.AcceptButton = ok2;
                 dlg.CancelButton = cancel;
 
-                if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                if (dlg.ShowDialog(this) != DialogResult.OK)
+                {
+                    // Cancel reverts the implicit enable from UPDATE RULES NOW.
+                    // The download's completion callback may already have persisted
+                    // the flipped flag, so the snapshot is re-persisted too; a
+                    // download still in flight simply finishes — rules on disk are
+                    // harmless while the engine is off.
+                    if (yaraEnabled != yaraWasEnabled)
+                    {
+                        yaraEnabled = yaraWasEnabled;
+                        SaveSettings();
+                        UpdateStatsUi();
+                    }
+                    return;
+                }
 
                 bool wasEnabled = yaraEnabled;
                 bool keyChanged = !string.Equals(vtApiKey, keyBox.Text.Trim());

@@ -52,6 +52,12 @@ namespace AVUI
         // the user the scan ends only with the last verdict. Cleared by
         // VtNotifyPendingDone (normal end) and ResetScanState (a new scan takes over).
         bool vtPhaseRunning;
+        // The running monitor batch took the scan state over from a held-open
+        // phase 3: set by ScanFileBatch (which captures vtPhaseRunning before
+        // ResetScanState clears it), consumed by FinishScan to hand the busy
+        // hero and verdict progress back once the batch is done. A manual scan
+        // clears it — the user's own scan legitimately replaces the phase.
+        bool vtPhaseInterrupted;
         Timer vtTimer;
         volatile bool vtBusy;        // a lookup/upload is in flight
         DateTime vtPauseUntil;       // backoff after 429 / rejected key
