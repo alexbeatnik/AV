@@ -31,6 +31,23 @@ namespace AVUI
         // MessageBox), used to postpone timer-triggered work like scheduled scans
         [DllImport("user32.dll")]
         public static extern bool IsWindowEnabled(IntPtr hWnd);
+        // Ground truth for "is the window really minimized": ShowInTaskbar
+        // recreates the handle, after which Form.WindowState can report Normal
+        // while the real window is still iconic at -32000 (see RestoreFromTray)
+        [DllImport("user32.dll")]
+        public static extern bool IsIconic(IntPtr hWnd);
+        [DllImport("user32.dll")]
+        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        public const int SW_RESTORE = 9;
+        // Used by the second-instance handshake: HWND_BROADCAST only reaches
+        // UNOWNED top-level windows, and a tray-hidden form is an owned window
+        // (that's how ShowInTaskbar=false hides it) — the show-yourself message
+        // must be posted to the running instance's windows directly.
+        public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+        [DllImport("user32.dll")]
+        public static extern bool EnumWindows(EnumWindowsProc cb, IntPtr lParam);
+        [DllImport("user32.dll")]
+        public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
     }
 
     // Dark theme palette — deep navy-tinted surfaces + vivid accents, the look
