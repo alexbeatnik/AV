@@ -23,7 +23,7 @@ exactly these two scripts on every PR. Releases are published by
 
 ## Resource & performance profile
 
-* **Executable size:** ~290 KB (single portable EXE, zero dependencies)
+* **Executable size:** ~300 KB (single portable EXE, zero dependencies)
 * **Downloads footprint:** the ClamAV zip (~220 MB) + signature database
   (~110 MB) + YARA engine and core ruleset (~10 MB). The zip's build-time
   artifacts (.pdb symbols, clamav_rust.lib — ~760 MB unpacked) are deleted

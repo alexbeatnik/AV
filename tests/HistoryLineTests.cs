@@ -34,5 +34,38 @@ namespace AVUI.Tests
             Assert.Equal("short", MainForm.FormatHistoryLine("short"), "too short to hold a stamp");
             Assert.Equal(null, MainForm.FormatHistoryLine(null), "null passes through");
         }
+
+        // ---- HistoryLinesThatFit: how many lines the activity card lists ----
+        // (the label's Consolas 9pt font is ~15px tall with 8px vertical padding)
+
+        public static void TestTypicalCardHeightFitsSeveralLines()
+        {
+            // 100 - 8 = 92 available, 17px per line → 5 full lines
+            Assert.Equal(5, MainForm.HistoryLinesThatFit(100, 8, 15),
+                "a mid-height card lists as many full lines as fit");
+        }
+
+        public static void TestCollapsedHeightStillShowsOneLine()
+        {
+            // a minimized window collapses the docked layout to ~0 height —
+            // the count must bottom out at one line, never zero or negative
+            Assert.Equal(1, MainForm.HistoryLinesThatFit(0, 8, 15),
+                "collapsed layout keeps one line");
+            Assert.Equal(1, MainForm.HistoryLinesThatFit(10, 8, 15),
+                "less than one line of room still shows one line");
+        }
+
+        public static void TestTallCardIsCappedAtEight()
+        {
+            Assert.Equal(8, MainForm.HistoryLinesThatFit(1000, 8, 15),
+                "the card never lists more than 8 entries");
+        }
+
+        public static void TestExactlyOneLineOfRoom()
+        {
+            // avail == lineH is not "> lineH" — the guard path returns 1 either way
+            Assert.Equal(1, MainForm.HistoryLinesThatFit(25, 8, 15),
+                "exactly one line of room shows one line");
+        }
     }
 }

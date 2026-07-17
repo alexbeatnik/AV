@@ -437,6 +437,11 @@ namespace AVUI
             SetBusy(false, null);
             FetchClamVersion();
             if (err == null) updateAvailable = false; // updated — the button is no longer needed
+            if (ShouldClearDbCooldown(err == null, dbCooldownUntil, DateTime.Now))
+            {
+                dbCooldownUntil = DateTime.MinValue;
+                SaveSettings();
+            }
             RefreshDbStatus();
             if (err == null)
             {
@@ -462,6 +467,15 @@ namespace AVUI
                 statusLabel.Text = Lang.T("status.updateError");
                 AppendLog(string.Format(Lang.T("log.updateErrorDetail"), err), Theme.Danger);
             }
+        }
+
+        // Pure rule (unit-tested): a download that succeeded while a 429
+        // cooldown was still pending proves the block is over ("try anyway") —
+        // a stale deadline must not keep the daily auto-check blocked after
+        // the server is clearly serving us again.
+        internal static bool ShouldClearDbCooldown(bool updateSucceeded, DateTime cooldownUntil, DateTime now)
+        {
+            return updateSucceeded && now < cooldownUntil;
         }
 
         // Database version from the 512-byte CVD header ("ClamAV-VDB:date:version:...")

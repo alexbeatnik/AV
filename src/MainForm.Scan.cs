@@ -277,7 +277,12 @@ namespace AVUI
                         }
                         else
                         {
-                            heroSub.Text = Lang.T("hero.dbUpdateAvailable");
+                            // a busy hero (scan, update, or a held-open VirusTotal
+                            // phase) owns the sub line; the tray toast still tells
+                            // the user, and RefreshDbStatus shows the update state
+                            // once the work ends
+                            if (HeroOwnerNow(vtPhaseRunning, scan.Running, updateRunning) == HeroOwner.Idle)
+                                heroSub.Text = Lang.T("hero.dbUpdateAvailable");
                             statusLabel.Text = Lang.T("status.dbUpdateAvailablePress");
                             Notify(5000, Lang.T("tray.dbUpdateAvailablePress"), ToolTipIcon.Info);
                         }

@@ -1312,14 +1312,16 @@ namespace AVUI
         void RefreshHistory()
         {
             if (lastActivityLabel == null) return;
+            // Minimizing collapses the docked layout to ~0 height; recomputing here
+            // would rewrite the text down to one line. Keep the last good text —
+            // RestoreFromTray refreshes once the real size is back.
+            if (WindowState == FormWindowState.Minimized) return;
             try
             {
                 // how many lines fit the current card height (fixed-size window, so
                 // this is stable once laid out; recomputed on the card's Resize)
-                int lineH = lastActivityLabel.Font.Height + 2;
-                int avail = lastActivityLabel.ClientSize.Height - lastActivityLabel.Padding.Vertical;
-                int max = avail > lineH ? avail / lineH : 1;
-                if (max > 8) max = 8;
+                int max = HistoryLinesThatFit(lastActivityLabel.ClientSize.Height,
+                    lastActivityLabel.Padding.Vertical, lastActivityLabel.Font.Height);
                 var recent = new List<string>();
                 if (File.Exists(scanLogPath))
                 {
@@ -1332,6 +1334,17 @@ namespace AVUI
                     : Lang.T("history.empty");
             }
             catch { }
+        }
+
+        // How many scans.log lines fit the activity label (pure, unit-tested):
+        // one line per font-height + 2px of leading; a degenerate/collapsed
+        // height still shows one line, and the card never lists more than 8.
+        internal static int HistoryLinesThatFit(int clientHeight, int verticalPadding, int fontHeight)
+        {
+            int lineH = fontHeight + 2;
+            int avail = clientHeight - verticalPadding;
+            int max = avail > lineH ? avail / lineH : 1;
+            return max > 8 ? 8 : max;
         }
 
         // scans.log keeps ISO timestamps (sortable, locale-neutral) — but the
@@ -1647,9 +1660,13 @@ namespace AVUI
 
         void RestoreFromTray()
         {
-            ShowInTaskbar = true;
+            ShowInTaskbar = true; // recreates the handle while still minimized
             WindowState = FormWindowState.Normal;
             Activate();
+            // The handle recreation above can swallow the label's final Resize,
+            // leaving the activity card with the one-line text computed while
+            // the window was collapsed — recompute at the restored size.
+            if (pages != null && pages[0] != null && pages[0].Visible) RefreshHistory();
         }
 
         void OnFormClosing(object sender, FormClosingEventArgs e)
