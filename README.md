@@ -22,7 +22,7 @@ detection under one portable dashboard:
    so a single false alarm from a heuristic rule doesn't turn into a
    needless scare.
 
-The app itself is a single ~290 KB exe; the engines it orchestrates are
+The app itself is a single ~300 KB exe; the engines it orchestrates are
 fetched automatically on first run (the ~220 MB ClamAV package plus its
 ~110 MB signature database, YARA with its rules ~10 MB) and kept updated.
 Interface in
