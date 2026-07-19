@@ -189,13 +189,18 @@ namespace AVUI
             UpdateStatsUi();
         }
 
-        // Generic path-list editor; returns true if OK was pressed
+        // Generic path-list editor; returns true if OK was pressed.
+        // Paths are picked with browse dialogs — a multiline text box was worse here,
+        // since Enter in a dialog with an AcceptButton submits instead of adding a line.
         bool EditPathList(string title, List<string> target, bool requireDir)
         {
+            // edits go to a working copy so Cancel really cancels
+            var working = new List<string>(target);
+
             using (var dlg = new Form())
             {
                 dlg.Text = title;
-                dlg.Size = new Size(560, 340);
+                dlg.Size = new Size(700, 400);
                 dlg.StartPosition = FormStartPosition.CenterParent;
                 dlg.MinimizeBox = dlg.MaximizeBox = false;
                 dlg.BackColor = Theme.Bg;
@@ -203,61 +208,94 @@ namespace AVUI
                 dlg.Font = Font;
                 Theme.DarkTitleBar(dlg);
 
-                var box = new TextBox();
-                box.Multiline = true;
-                box.ScrollBars = ScrollBars.Vertical;
-                box.Dock = DockStyle.Fill;
-                box.Font = new Font("Consolas", 9.5f);
-                box.BackColor = Theme.LogBg;
-                box.ForeColor = Theme.Text;
-                box.BorderStyle = BorderStyle.None;
-                box.Text = string.Join(Environment.NewLine, target.ToArray());
+                var list = MakeList();
+                list.Columns.Add(Lang.T("col.path"), 480);
+                list.Columns.Add(Lang.T("col.type"), 120);
 
-                var boxWrap = new Panel();
-                boxWrap.Dock = DockStyle.Fill;
-                boxWrap.Padding = new Padding(12);
-                boxWrap.BackColor = Theme.Bg;
-                boxWrap.Controls.Add(box);
+                Action reload = delegate
+                {
+                    list.Items.Clear();
+                    foreach (string p in working)
+                    {
+                        string kind = Directory.Exists(p) ? Lang.T("type.folder")
+                            : (File.Exists(p) ? Lang.T("type.file") : Lang.T("type.missing"));
+                        var item = new ListViewItem(new string[] { p, kind });
+                        item.Tag = p;
+                        list.Items.Add(item);
+                    }
+                };
 
                 var buttons = new FlowLayoutPanel();
                 buttons.Dock = DockStyle.Bottom;
                 buttons.FlowDirection = FlowDirection.RightToLeft;
-                buttons.Height = 48;
+                buttons.Height = 50;
                 buttons.Padding = new Padding(8);
                 buttons.BackColor = Theme.Bg;
+
                 var ok = MakeButton(Lang.T("btn.ok"), 90, Theme.Accent, Theme.AccentHot, Ico.Check);
                 ok.DialogResult = DialogResult.OK;
                 var cancel = MakeButton(Lang.T("btn.cancel"), 100, Theme.Card, Theme.Bg, Ico.Close);
                 cancel.DialogResult = DialogResult.Cancel;
+                var remove = MakeButton(Lang.T("btn.removeFromList"), 165, Theme.Card, Theme.Bg, Ico.Close);
+                var addDir = MakeButton(Lang.T("btn.addFolder"), 140, Theme.Card, Theme.Bg, Ico.FolderPlus);
+
+                remove.Click += delegate
+                {
+                    foreach (ListViewItem it in list.SelectedItems) working.Remove((string)it.Tag);
+                    reload();
+                };
+                addDir.Click += delegate
+                {
+                    using (var f = new FolderBrowserDialog())
+                        if (f.ShowDialog(dlg) == DialogResult.OK) { AddPathOnce(working, f.SelectedPath); reload(); }
+                };
+                // Del removes the selection, matching every other list in the app
+                list.KeyDown += delegate(object s, KeyEventArgs e)
+                {
+                    if (e.KeyCode == Keys.Delete) { remove.PerformClick(); e.Handled = true; }
+                };
+
                 buttons.Controls.Add(ok);
                 buttons.Controls.Add(cancel);
+                buttons.Controls.Add(remove);
+                buttons.Controls.Add(addDir);
 
-                dlg.Controls.Add(boxWrap);
+                if (!requireDir)
+                {
+                    var addFile = MakeButton(Lang.T("btn.addFile"), 135, Theme.Card, Theme.Bg, Ico.FilePlus);
+                    addFile.Click += delegate
+                    {
+                        using (var f = new OpenFileDialog())
+                            if (f.ShowDialog(dlg) == DialogResult.OK) { AddPathOnce(working, f.FileName); reload(); }
+                    };
+                    buttons.Controls.Add(addFile);
+                }
+
+                dlg.Controls.Add(list);
                 dlg.Controls.Add(buttons);
                 dlg.AcceptButton = ok;
                 dlg.CancelButton = cancel;
 
+                reload();
                 if (dlg.ShowDialog(this) != DialogResult.OK) return false;
-
-                target.Clear();
-                foreach (string line in box.Lines)
-                {
-                    string d = line.Trim();
-                    if (d.Length == 0) continue;
-                    if (requireDir && !Directory.Exists(d))
-                    {
-                        AppendLog(string.Format(Lang.T("log.folderNotFound"), d), Theme.Warn);
-                        continue;
-                    }
-                    if (!requireDir && !Directory.Exists(d) && !File.Exists(d))
-                    {
-                        AppendLog(string.Format(Lang.T("log.pathNotFound"), d), Theme.Warn);
-                        continue;
-                    }
-                    AddPathOnce(target, d);
-                }
-                return true;
             }
+
+            target.Clear();
+            foreach (string d in working)
+            {
+                if (requireDir && !Directory.Exists(d))
+                {
+                    AppendLog(string.Format(Lang.T("log.folderNotFound"), d), Theme.Warn);
+                    continue;
+                }
+                if (!requireDir && !Directory.Exists(d) && !File.Exists(d))
+                {
+                    AppendLog(string.Format(Lang.T("log.pathNotFound"), d), Theme.Warn);
+                    continue;
+                }
+                AddPathOnce(target, d);
+            }
+            return true;
         }
 
         // ---------- New-file monitoring ----------

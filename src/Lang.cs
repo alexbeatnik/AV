@@ -230,7 +230,7 @@ namespace AVUI
             A("msg.deleteFromDiskConfirm", "Permanently delete {0} file(s) from disk and remove from the list?", "Видалити з диска {0} файл(ів) і прибрати зі списку?");
 
             // Watch dirs / path list editor
-            A("watch.editTitle", "Folders to monitor (one per line)", "Папки для моніторингу (одна на рядок)");
+            A("watch.editTitle", "Folders to monitor", "Папки для моніторингу");
             A("log.folderNotFound", "Folder not found, skipping: {0}\r\n", "Папку не знайдено, пропускаю: {0}\r\n");
             A("log.pathNotFound", "Path not found, skipping: {0}\r\n", "Шлях не знайдено, пропускаю: {0}\r\n");
 
