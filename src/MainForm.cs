@@ -134,6 +134,9 @@ namespace AVUI
         NavTab[] navs;
         static Image logoImage;
         static Icon appIcon;
+        // NetworkChange.NetworkAvailabilityChanged is a static event — the handler is
+        // held here so OnFormClosing can detach it (see BuildUi)
+        System.Net.NetworkInformation.NetworkAvailabilityChangedEventHandler netAvailabilityHandler;
 
         // Logo and icon are embedded in the exe as resources (see build.ps1)
         static Image LogoImage
@@ -301,6 +304,7 @@ namespace AVUI
             }
             catch (Exception ex)
             {
+                try { p.Dispose(); } catch { } // never started — no exit event will collect it
                 AppendLog(string.Format(Lang.T("log.processStartFailed"), Path.GetFileName(exe), ex.Message), Theme.Danger);
                 scan.Running = false;
                 scan.Monitor = false;

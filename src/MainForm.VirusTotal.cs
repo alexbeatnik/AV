@@ -60,6 +60,8 @@ namespace AVUI
         bool vtPhaseInterrupted;
         Timer vtTimer;
         volatile bool vtBusy;        // a lookup/upload is in flight
+        // the path of that in-flight lookup — UI thread only; see VtQueueFile
+        string vtInFlightPath;
         DateTime vtPauseUntil;       // backoff after 429 / rejected key
         const int VtIntervalMs = 16000;           // free tier: 4 requests/minute
         const long VtUploadMaxBytes = 32 * 1048576; // the simple upload endpoint caps at 32 MB
@@ -74,6 +76,10 @@ namespace AVUI
         bool VtQueueFile(string path, string hash)
         {
             if (!VtActive) return false;
+            // the in-flight item is no longer in the queue (OnVtTick pops it before
+            // the request), so it needs its own check — otherwise the same path can
+            // be looked up twice, and at 4 requests/minute that is expensive
+            if (string.Equals(vtInFlightPath, path, StringComparison.OrdinalIgnoreCase)) return true;
             foreach (string[] q in vtQueue)
                 if (string.Equals(q[0], path, StringComparison.OrdinalIgnoreCase)) return true; // already queued
             if (vtQueue.Count >= 100) return false;
@@ -100,6 +106,7 @@ namespace AVUI
             vtQueue.RemoveAt(0);
             vtBusy = true;
             string path = item[0], hash = item[1], key = vtApiKey;
+            vtInFlightPath = path;
             System.Threading.ThreadPool.QueueUserWorkItem(delegate { VtLookupWorker(path, hash, key); });
         }
 
@@ -142,6 +149,7 @@ namespace AVUI
                 BeginInvoke((Action)delegate
                 {
                     vtBusy = false;
+                    vtInFlightPath = null; // cleared before VtOnResult, which may re-queue on 429
                     VtOnResult(fPath, fHash, fStatus, fMal, fSusp, fTotal, fErr);
                 });
             }

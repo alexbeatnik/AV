@@ -55,16 +55,18 @@ namespace AVUI
             // The VirusTotal cell in the engines strip shows an "offline" state —
             // refresh it the moment the network drops or comes back, not only on
             // the next page switch. The event fires on a worker thread.
-            System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged +=
-                delegate
+            // kept in a field so OnFormClosing can unsubscribe: the event is static,
+            // so the handler would otherwise keep this form alive after it closes
+            netAvailabilityHandler = delegate
+            {
+                try
                 {
-                    try
-                    {
-                        if (!IsDisposed && IsHandleCreated)
-                            BeginInvoke((MethodInvoker)delegate { UpdateStatsUi(); });
-                    }
-                    catch { } // racing shutdown — nothing to update
-                };
+                    if (!IsDisposed && IsHandleCreated)
+                        BeginInvoke((MethodInvoker)delegate { UpdateStatsUi(); });
+                }
+                catch { } // racing shutdown — nothing to update
+            };
+            System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged += netAvailabilityHandler;
 
             if (startInTray)
             {
@@ -737,8 +739,15 @@ namespace AVUI
                 quarList.Items.Add(item);
             }
             quarList.EndUpdate();
-            bool empty = quarRows.Count == 0;
+            // the placeholder follows what is actually on screen, not the raw
+            // count: a search that matches nothing used to leave a blank table
+            // with no explanation, which reads as a broken list
+            bool empty = rows.Count == 0;
+            bool filteredOut = empty && quarRows.Count > 0;
+            quarEmpty.Title = Lang.T(filteredOut ? "quarantine.noMatchTitle" : "quarantine.emptyTitle");
+            quarEmpty.Sub = Lang.T(filteredOut ? "quarantine.noMatchSub" : "quarantine.emptySub");
             quarEmpty.Visible = empty;
+            quarEmpty.Invalidate();
             quarList.Visible = !empty;
             UpdateQuarHeaders();
         }
@@ -1596,9 +1605,7 @@ namespace AVUI
                 quarMenuDelete.Text = Lang.T("menu.deleteForever");
                 quarMenuOpen.Text = Lang.T("menu.openOrigin");
                 quarMenuProps.Text = Lang.T("menu.properties");
-                quarEmpty.Title = Lang.T("quarantine.emptyTitle");
-                quarEmpty.Sub = Lang.T("quarantine.emptySub");
-                quarEmpty.Invalidate();
+                ApplyQuarFilter(); // re-texts the empty-state placeholder for the new language
                 if (quarSearch.IsHandleCreated) SetQuarSearchCue();
                 if (pages != null && pages[2] != null && pages[2].Visible) ReloadQuarantineList();
             }
@@ -1686,6 +1693,15 @@ namespace AVUI
                 WindowState = FormWindowState.Minimized;
                 ShowInTaskbar = false;
                 return;
+            }
+            if (netAvailabilityHandler != null)
+            {
+                try
+                {
+                    System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged -= netAvailabilityHandler;
+                }
+                catch { }
+                netAvailabilityHandler = null;
             }
             StopWatchers();
             StopCurrent();
