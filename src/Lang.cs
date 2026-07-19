@@ -103,6 +103,9 @@ namespace AVUI
             A("quarantine.searchCue", "Search quarantine…", "Пошук у карантині…");
             A("quarantine.emptyTitle", "No files in quarantine", "У карантині порожньо");
             A("quarantine.emptySub", "Detected threats will appear here.", "Виявлені загрози з'являтимуться тут.");
+            // shown when the search filtered everything out — the quarantine itself is NOT empty
+            A("quarantine.noMatchTitle", "Nothing matches the search", "За пошуком нічого немає");
+            A("quarantine.noMatchSub", "Clear the search box to see all quarantined files.", "Очисти поле пошуку, щоб побачити всі файли карантину.");
             A("quarantine.reasonManual", "Manual", "Вручну");
             A("stat.quarFiles", "Files", "Файлів");
             A("stat.totalSize", "Total size", "Загальний розмір");
@@ -208,6 +211,7 @@ namespace AVUI
             A("title.deletion", "Deletion", "Видалення");
             A("title.error", "Error", "Помилка");
             A("status.exclusionsCount", "Exclusions: {0}.", "Виключень: {0}.");
+            A("status.vtHashing", "Computing SHA256…", "Обчислюю SHA256…");
 
             // Quarantine dialog
             A("quarantine.title", "Quarantine", "Карантин");
@@ -230,7 +234,7 @@ namespace AVUI
             A("msg.deleteFromDiskConfirm", "Permanently delete {0} file(s) from disk and remove from the list?", "Видалити з диска {0} файл(ів) і прибрати зі списку?");
 
             // Watch dirs / path list editor
-            A("watch.editTitle", "Folders to monitor (one per line)", "Папки для моніторингу (одна на рядок)");
+            A("watch.editTitle", "Folders to monitor", "Папки для моніторингу");
             A("log.folderNotFound", "Folder not found, skipping: {0}\r\n", "Папку не знайдено, пропускаю: {0}\r\n");
             A("log.pathNotFound", "Path not found, skipping: {0}\r\n", "Шлях не знайдено, пропускаю: {0}\r\n");
 

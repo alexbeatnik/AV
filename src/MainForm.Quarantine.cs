@@ -266,7 +266,9 @@ namespace AVUI
                     item.Tag = f; // {path, threat name, [scan description]}
                     list.Items.Add(item);
                 }
-                if (list.Items.Count == 0) return;
+                // nothing left to decide (everything was auto-quarantined already);
+                // the list never reached dlg.Controls, so it must be disposed here
+                if (list.Items.Count == 0) { list.Dispose(); return; }
 
                 var hint = new Label();
                 hint.Dock = DockStyle.Top;
@@ -338,16 +340,39 @@ namespace AVUI
 
                 // opens the public VirusTotal page for the selected files' hashes —
                 // a quick second opinion before deciding what to do with them
+                // The hashing runs off the UI thread: with nothing selected this
+                // takes every listed file, and a single multi-GB match froze the
+                // dialog for seconds (the YARA path avoids it the same way).
                 vt.Click += delegate
                 {
-                    int opened = 0;
+                    var paths = new List<string>();
                     foreach (var it in picked())
                     {
-                        if (opened >= 5) break; // don't open a wall of browser tabs
-                        string p = ((string[])it.Tag)[0];
-                        try { VtOpenInBrowser(Sha256OfQuarFile(p)); opened++; }
-                        catch { }
+                        if (paths.Count >= 5) break; // don't open a wall of browser tabs
+                        paths.Add(((string[])it.Tag)[0]);
                     }
+                    if (paths.Count == 0) return;
+                    vt.Enabled = false;
+                    statusLabel.Text = Lang.T("status.vtHashing");
+                    System.Threading.ThreadPool.QueueUserWorkItem(delegate
+                    {
+                        var hashes = new List<string>();
+                        foreach (string p in paths)
+                        {
+                            try { hashes.Add(Sha256OfQuarFile(p)); }
+                            catch { } // unreadable — skip, the others still open
+                        }
+                        try
+                        {
+                            BeginInvoke((Action)delegate
+                            {
+                                foreach (string h in hashes) VtOpenInBrowser(h);
+                                statusLabel.Text = Lang.T("status.ready");
+                                if (!dlg.IsDisposed) vt.Enabled = true;
+                            });
+                        }
+                        catch { } // the form is already closed
+                    });
                 };
 
                 buttons.Controls.Add(close);

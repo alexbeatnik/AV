@@ -50,7 +50,10 @@ namespace AVUI
         // once (files dropped onto the window) — desc names them for the log/history
         void RunClamscan(List<string> targets, string desc)
         {
-            if (scan.Running || updateRunning) return;
+            // same engine/database guard every other scan entry point uses: the
+            // scan buttons are disabled without them, but a caller that forgets
+            // to check would otherwise reach Path.Combine(clamDir, …) with null
+            if (scan.Running || updateRunning || clamDir == null || !DbExists()) return;
             ResetScanState(desc);
             ClearLog();
             AppendSection(Lang.T("section.scan"));
@@ -385,7 +388,7 @@ namespace AVUI
 
         void RunFullScan()
         {
-            if (scan.Running || updateRunning) return;
+            if (scan.Running || updateRunning || clamDir == null || !DbExists()) return;
             var targets = new List<string>();
             foreach (DriveInfo d in DriveInfo.GetDrives())
                 if (d.DriveType == DriveType.Fixed && d.IsReady) targets.Add(d.RootDirectory.FullName);
@@ -1002,6 +1005,7 @@ namespace AVUI
             }
             catch (Exception ex)
             {
+                try { p.Dispose(); } catch { } // never started — no exit event will collect it
                 AppendLog(string.Format(Lang.T("log.clamdscanStartFailed"), ex.Message), Theme.Danger);
                 OnScanChildDone(2);
             }
