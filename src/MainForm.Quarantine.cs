@@ -353,7 +353,8 @@ namespace AVUI
                     }
                     if (paths.Count == 0) return;
                     vt.Enabled = false;
-                    statusLabel.Text = Lang.T("status.vtHashing");
+                    string busyText = Lang.T("status.vtHashing");
+                    statusLabel.Text = busyText;
                     System.Threading.ThreadPool.QueueUserWorkItem(delegate
                     {
                         var hashes = new List<string>();
@@ -367,7 +368,13 @@ namespace AVUI
                             BeginInvoke((Action)delegate
                             {
                                 foreach (string h in hashes) VtOpenInBrowser(h);
-                                statusLabel.Text = Lang.T("status.ready");
+                                // Only clear our own text. This dialog is modal but timers keep
+                                // ticking inside a modal loop, so by the time the hashing ends the
+                                // status bar may legitimately belong to someone else — a monitor
+                                // batch, a held-open VirusTotal phase 3, or the scan result this
+                                // very dialog was opened for ("Threats found: N"). Overwriting it
+                                // with "Ready" erased that.
+                                if (statusLabel.Text == busyText) statusLabel.Text = Lang.T("status.ready");
                                 if (!dlg.IsDisposed) vt.Enabled = true;
                             });
                         }

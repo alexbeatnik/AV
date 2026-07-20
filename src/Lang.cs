@@ -235,8 +235,8 @@ namespace AVUI
 
             // Watch dirs / path list editor
             A("watch.editTitle", "Folders to monitor", "Папки для моніторингу");
-            A("log.folderNotFound", "Folder not found, skipping: {0}\r\n", "Папку не знайдено, пропускаю: {0}\r\n");
-            A("log.pathNotFound", "Path not found, skipping: {0}\r\n", "Шлях не знайдено, пропускаю: {0}\r\n");
+            A("log.folderNotFound", "Folder is unavailable right now, kept on the list: {0}\r\n", "Папка зараз недоступна, залишено у списку: {0}\r\n");
+            A("log.pathNotFound", "Path is unavailable right now, kept on the list: {0}\r\n", "Шлях зараз недоступний, залишено у списку: {0}\r\n");
 
             // Monitoring
             A("status.monitorOn", "Monitoring enabled: new files will be checked automatically.", "Моніторинг увімкнено: нові файли перевірятимуться автоматично.");
