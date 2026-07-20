@@ -280,19 +280,20 @@ namespace AVUI
                 if (dlg.ShowDialog(this) != DialogResult.OK) return false;
             }
 
+            // A path that is only *temporarily* gone (unplugged drive, offline network
+            // share, folder being rebuilt) stays on the list: dropping it here deleted
+            // watch folders just because the user opened the editor and pressed OK —
+            // even without touching them, and even though the list showed them as
+            // "missing" rather than as already removed. Nothing downstream needs the
+            // path to exist (StartWatchers skips missing folders and picks them up
+            // again on the next start), so the entry is kept and only reported.
             target.Clear();
             foreach (string d in working)
             {
                 if (requireDir && !Directory.Exists(d))
-                {
                     AppendLog(string.Format(Lang.T("log.folderNotFound"), d), Theme.Warn);
-                    continue;
-                }
-                if (!requireDir && !Directory.Exists(d) && !File.Exists(d))
-                {
+                else if (!requireDir && !Directory.Exists(d) && !File.Exists(d))
                     AppendLog(string.Format(Lang.T("log.pathNotFound"), d), Theme.Warn);
-                    continue;
-                }
                 AddPathOnce(target, d);
             }
             return true;
