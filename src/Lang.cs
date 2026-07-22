@@ -280,6 +280,7 @@ namespace AVUI
             A("activity.recent", "Recent activity", "Остання активність");
             A("history.empty", "No scans yet.", "Ще не було жодного сканування.");
             A("log.emptyLogFile", "The log is empty — no scans yet.", "Журнал поки порожній — ще не було жодного сканування.");
+            A("log.openFailed", "Could not open the log: {0}", "Не вдалося відкрити журнал: {0}");
 
             // Auto-update
             A("status.dbUpToDate", "Signature database is up to date.", "Бази сигнатур актуальні.");

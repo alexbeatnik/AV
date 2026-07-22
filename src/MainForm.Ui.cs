@@ -80,7 +80,7 @@ namespace AVUI
             // the ClamAV download offer as before.
             Shown += delegate
             {
-                if (startInTray) return;
+                if (startInTray) { Hide(); return; }
                 if (!modeAsked && !IsInstalled)
                 {
                     modeAsked = true; // one-time question, even if UAC is declined later
@@ -230,8 +230,17 @@ namespace AVUI
 
             Resize += delegate
             {
+                // Minimize (—) goes to the tray, same as the close button. A window
+                // that's Minimized with ShowInTaskbar=false but still Visible has no
+                // taskbar button to shrink into, so Windows paints a legacy title-bar
+                // strip docked at the desktop's bottom-left — Hide() removes it. The
+                // tray-hidden state stays Minimized + !ShowInTaskbar so RestoreFromTray
+                // (IsIconic → SW_RESTORE) and trayNext keep working.
                 if (WindowState == FormWindowState.Minimized)
-                    ShowInTaskbar = false; // hide to tray
+                {
+                    ShowInTaskbar = false;
+                    Hide();
+                }
             };
             FormClosing += OnFormClosing;
 
@@ -454,6 +463,7 @@ namespace AVUI
             lastActivityLabel.Dock = DockStyle.Fill;
             lastActivityLabel.UseMnemonic = false; // paths/descriptions may contain "&"
             lastActivityLabel.Padding = new Padding(0, 8, 0, 0);
+            lastActivityLabel.AutoEllipsis = true;
             lastActivityLabel.Font = new Font("Consolas", 9f);
             lastActivityLabel.ForeColor = Theme.Muted;
             lastActivityLabel.BackColor = Theme.Card;
@@ -1670,18 +1680,25 @@ namespace AVUI
         void RestoreFromTray()
         {
             ShowInTaskbar = true; // recreates the handle while still minimized
-            // After that recreation Form.WindowState can report Normal while the
-            // real window is still iconic at -32000 — the assignment below is
-            // then a no-op and the window never actually comes back. Ask the OS,
-            // not the desynced property, and restore through it.
+            // The window is usually fully hidden (Hide() on close/minimize, and the
+            // --tray autostart, which is hidden but never became iconic). Neither
+            // Activate() nor SW_RESTORE reveals a hidden window — show it explicitly,
+            // otherwise restoring from the tray after autostart does nothing.
+            Show();
+            // After the ShowInTaskbar recreation Form.WindowState can report Normal
+            // while the real window is still iconic at -32000 — ask the OS, not the
+            // desynced property, and un-minimize through it.
             if (NativeMethods.IsIconic(Handle))
                 NativeMethods.ShowWindow(Handle, NativeMethods.SW_RESTORE);
             WindowState = FormWindowState.Normal;
             Activate();
+            BringToFront();
             // The handle recreation above can swallow the label's final Resize,
-            // leaving the activity card with the one-line text computed while
-            // the window was collapsed — recompute at the restored size.
-            if (pages != null && pages[0] != null && pages[0].Visible) RefreshHistory();
+            // leaving the activity card with the one-line text computed while the
+            // window was collapsed. Recompute once layout has settled at the restored
+            // size (BeginInvoke), so the history shows full lines, not a clipped date.
+            if (pages != null && pages[0] != null && pages[0].Visible)
+                BeginInvoke((MethodInvoker)RefreshHistory);
         }
 
         void OnFormClosing(object sender, FormClosingEventArgs e)
@@ -1690,8 +1707,7 @@ namespace AVUI
             {
                 // The close button minimizes to tray; actual exit is via the tray menu
                 e.Cancel = true;
-                WindowState = FormWindowState.Minimized;
-                ShowInTaskbar = false;
+                Hide();
                 return;
             }
             if (netAvailabilityHandler != null)

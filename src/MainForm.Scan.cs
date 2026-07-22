@@ -224,8 +224,10 @@ namespace AVUI
 
         void OpenScanLog()
         {
-            if (File.Exists(scanLogPath)) Process.Start("notepad.exe", Quote(scanLogPath));
-            else statusLabel.Text = Lang.T("log.emptyLogFile");
+            if (!File.Exists(scanLogPath)) { statusLabel.Text = Lang.T("log.emptyLogFile"); return; }
+            // notepad.exe can be missing/blocked by policy — Process.Start would throw Win32Exception
+            try { Process.Start("notepad.exe", Quote(scanLogPath)); }
+            catch (Exception ex) { statusLabel.Text = string.Format(Lang.T("log.openFailed"), ex.Message); }
         }
 
         // Once a day, quietly checks database versions (3 requests of 512 bytes). If a
@@ -1035,10 +1037,11 @@ namespace AVUI
                 scan.Found++;
                 scan.Scanned++;
                 int sep = line.LastIndexOf(": ");
-                if (sep > 0)
+                int sigLen = line.Length - sep - 2 - 6; // text between ": " and the trailing " FOUND"
+                if (sep > 0 && sigLen >= 0) // a short/odd line (e.g. "x: FOUND") would make sigLen negative
                 {
                     string path = line.Substring(0, sep);
-                    string sig = line.Substring(sep + 2, line.Length - sep - 2 - 6); // strip " FOUND"
+                    string sig = line.Substring(sep + 2, sigLen);
                     scan.FoundFiles.Add(new string[] { path, sig });
                 }
                 AppendLog(line + "\r\n", Theme.Danger, "INFECTED", false);
