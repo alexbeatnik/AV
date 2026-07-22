@@ -135,17 +135,40 @@ namespace AVUI
             bytesWritten = 0;
             try
             {
-                var buf = new byte[size];
-                IntPtr read;
-                if (!MemNative.ReadProcessMemory(h, baseAddr, buf, new IntPtr(size), out read)) return null;
-                int n = (int)read.ToInt64();
-                if (n <= 0) return null;
-                string name = SanitizeName(pname) + "_pid" + pid
-                    + "_0x" + baseAddr.ToInt64().ToString("x") + ".bin";
-                string path = Path.Combine(memDumpDir, name);
-                using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write))
-                    fs.Write(buf, 0, n);
-                bytesWritten = n;
+                // Copy the region in 64 KB chunks through one small buffer. A single
+                // byte[size] would be up to 16 MB (MemMaxRegionBytes) and land on the
+                // Large Object Heap on every dump, fragmenting it over a full scan; a
+                // 64 KB buffer stays on the ordinary (compacting) heap and is reused.
+                const int Chunk = 64 * 1024;
+                var buf = new byte[Chunk];
+                FileStream fs = null;
+                string path = null;
+                long total = 0;
+                try
+                {
+                    while (total < size)
+                    {
+                        int want = (int)Math.Min((long)Chunk, size - total);
+                        IntPtr read;
+                        IntPtr addr = new IntPtr(baseAddr.ToInt64() + total);
+                        if (!MemNative.ReadProcessMemory(h, addr, buf, new IntPtr(want), out read)) break; // hit a guard/no-access page — keep the readable prefix
+                        int n = (int)read.ToInt64();
+                        if (n <= 0) break;
+                        if (fs == null) // create the file only once the first bytes are in hand
+                        {
+                            string name = SanitizeName(pname) + "_pid" + pid
+                                + "_0x" + baseAddr.ToInt64().ToString("x") + ".bin";
+                            path = Path.Combine(memDumpDir, name);
+                            fs = new FileStream(path, FileMode.Create, FileAccess.Write);
+                        }
+                        fs.Write(buf, 0, n);
+                        total += n;
+                        if (n < want) break; // short read — end of the readable range
+                    }
+                }
+                finally { if (fs != null) fs.Dispose(); }
+                if (total <= 0) return null;
+                bytesWritten = total;
                 return path;
             }
             catch { return null; } // region freed / unreadable / disk error — skip

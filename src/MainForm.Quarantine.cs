@@ -203,7 +203,10 @@ namespace AVUI
         {
             bool xor = path.EndsWith(QuarExt, StringComparison.OrdinalIgnoreCase);
             using (var sha = System.Security.Cryptography.SHA256.Create())
-            using (var fin = File.OpenRead(path))
+            // share ReadWrite|Delete: a non-.quar file being hashed for VirusTotal may
+            // still be open elsewhere; File.OpenRead's default share would throw on it
+            using (var fin = new FileStream(path, FileMode.Open, FileAccess.Read,
+                       FileShare.ReadWrite | FileShare.Delete))
             {
                 var buf = new byte[81920];
                 int n;

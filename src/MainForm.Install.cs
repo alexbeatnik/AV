@@ -118,11 +118,17 @@ namespace AVUI
                     CarryOverFile(Path.Combine(srcDir, fn), Path.Combine(dst, fn));
             }
 
-            // shortcuts: Start Menu and Desktop (both per-user)
-            CreateShortcut(Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.Programs), "AV.lnk"), dstExe, dst);
-            CreateShortcut(Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "AV.lnk"), dstExe, dst);
+            // shortcuts: Start Menu and Desktop (both per-user). Non-essential — if
+            // Windows Script Host is disabled by group policy, CreateShortcut throws;
+            // skip the shortcuts rather than failing an install whose files are done.
+            try
+            {
+                CreateShortcut(Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.Programs), "AV.lnk"), dstExe, dst);
+                CreateShortcut(Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "AV.lnk"), dstExe, dst);
+            }
+            catch { }
 
             // register in "Apps" (per-user entry)
             using (var k = Registry.CurrentUser.CreateSubKey(

@@ -80,7 +80,7 @@ namespace AVUI
             // the ClamAV download offer as before.
             Shown += delegate
             {
-                if (startInTray) return;
+                if (startInTray) { Hide(); return; }
                 if (!modeAsked && !IsInstalled)
                 {
                     modeAsked = true; // one-time question, even if UAC is declined later
@@ -454,6 +454,7 @@ namespace AVUI
             lastActivityLabel.Dock = DockStyle.Fill;
             lastActivityLabel.UseMnemonic = false; // paths/descriptions may contain "&"
             lastActivityLabel.Padding = new Padding(0, 8, 0, 0);
+            lastActivityLabel.AutoEllipsis = true;
             lastActivityLabel.Font = new Font("Consolas", 9f);
             lastActivityLabel.ForeColor = Theme.Muted;
             lastActivityLabel.BackColor = Theme.Card;
@@ -1690,8 +1691,7 @@ namespace AVUI
             {
                 // The close button minimizes to tray; actual exit is via the tray menu
                 e.Cancel = true;
-                WindowState = FormWindowState.Minimized;
-                ShowInTaskbar = false;
+                Hide();
                 return;
             }
             if (netAvailabilityHandler != null)
