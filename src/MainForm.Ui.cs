@@ -1339,6 +1339,15 @@ namespace AVUI
             if (WindowState == FormWindowState.Minimized || NativeMethods.IsIconic(Handle)) return;
             try
             {
+                // Self-heal a lost layout pass: seen in the wild — after some
+                // handle-recreation event in a long tray-resident session the
+                // docked label sat at its default 100×23 bounds, so the card
+                // showed a single clipped date. Dock is still Fill, so when the
+                // label's width disagrees with the card's content area, one
+                // forced layout pass of the card re-docks it before measuring.
+                if (activityRow != null && HistoryLayoutLost(lastActivityLabel.Width,
+                        activityRow.ClientSize.Width, activityRow.Padding.Horizontal))
+                    activityRow.PerformLayout();
                 // how many lines fit the current card height (fixed-size window, so
                 // this is stable once laid out; recomputed on the card's Resize)
                 int max = HistoryLinesThatFit(lastActivityLabel.ClientSize.Height,
@@ -1355,6 +1364,15 @@ namespace AVUI
                     : Lang.T("history.empty");
             }
             catch { }
+        }
+
+        // True when the activity label's width no longer matches the card's
+        // content area — the signature of a lost dock-layout pass (pure,
+        // unit-tested). A ±2px slack absorbs border/rounding differences so a
+        // healthy layout never triggers a needless PerformLayout.
+        internal static bool HistoryLayoutLost(int labelWidth, int rowClientWidth, int rowHorizontalPadding)
+        {
+            return Math.Abs(labelWidth - (rowClientWidth - rowHorizontalPadding)) > 2;
         }
 
         // How many scans.log lines fit the activity label (pure, unit-tested):

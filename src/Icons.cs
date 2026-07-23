@@ -49,27 +49,31 @@ namespace AVUI
         public static void FileIcon(Graphics g, RectangleF r, Color c)
         {
             float w = r.Width, h = r.Height, fold = w * 0.3f;
-            var p = new GraphicsPath();
-            p.AddLine(r.X + w * 0.2f, r.Y, r.X + w - fold, r.Y);
-            p.AddLine(r.X + w - fold, r.Y, r.X + w * 0.82f, r.Y + fold * 0.75f);
-            p.AddLine(r.X + w * 0.82f, r.Y + fold * 0.75f, r.X + w * 0.82f, r.Y + h);
-            p.AddLine(r.X + w * 0.82f, r.Y + h, r.X + w * 0.2f, r.Y + h);
-            p.CloseFigure();
-            using (var pen = P(c, r, 0.1f)) g.DrawPath(pen, p);
+            using (var p = new GraphicsPath())
+            {
+                p.AddLine(r.X + w * 0.2f, r.Y, r.X + w - fold, r.Y);
+                p.AddLine(r.X + w - fold, r.Y, r.X + w * 0.82f, r.Y + fold * 0.75f);
+                p.AddLine(r.X + w * 0.82f, r.Y + fold * 0.75f, r.X + w * 0.82f, r.Y + h);
+                p.AddLine(r.X + w * 0.82f, r.Y + h, r.X + w * 0.2f, r.Y + h);
+                p.CloseFigure();
+                using (var pen = P(c, r, 0.1f)) g.DrawPath(pen, p);
+            }
         }
 
         // Folder — scan a folder / pick a directory
         public static void FolderIcon(Graphics g, RectangleF r, Color c)
         {
             float w = r.Width, h = r.Height;
-            var p = new GraphicsPath();
-            p.AddLine(r.X, r.Y + h * 0.16f, r.X + w * 0.4f, r.Y + h * 0.16f);
-            p.AddLine(r.X + w * 0.4f, r.Y + h * 0.16f, r.X + w * 0.5f, r.Y + h * 0.32f);
-            p.AddLine(r.X + w * 0.5f, r.Y + h * 0.32f, r.X + w, r.Y + h * 0.32f);
-            p.AddLine(r.X + w, r.Y + h * 0.32f, r.X + w, r.Y + h * 0.92f);
-            p.AddLine(r.X + w, r.Y + h * 0.92f, r.X, r.Y + h * 0.92f);
-            p.CloseFigure();
-            using (var pen = P(c, r, 0.11f)) g.DrawPath(pen, p);
+            using (var p = new GraphicsPath())
+            {
+                p.AddLine(r.X, r.Y + h * 0.16f, r.X + w * 0.4f, r.Y + h * 0.16f);
+                p.AddLine(r.X + w * 0.4f, r.Y + h * 0.16f, r.X + w * 0.5f, r.Y + h * 0.32f);
+                p.AddLine(r.X + w * 0.5f, r.Y + h * 0.32f, r.X + w, r.Y + h * 0.32f);
+                p.AddLine(r.X + w, r.Y + h * 0.32f, r.X + w, r.Y + h * 0.92f);
+                p.AddLine(r.X + w, r.Y + h * 0.92f, r.X, r.Y + h * 0.92f);
+                p.CloseFigure();
+                using (var pen = P(c, r, 0.11f)) g.DrawPath(pen, p);
+            }
         }
 
         // Stacked drives — full-PC / system scan
@@ -135,15 +139,17 @@ namespace AVUI
         public static void ShieldIcon(Graphics g, RectangleF r, Color c)
         {
             float w = r.Width, h = r.Height;
-            var p = new GraphicsPath();
-            p.AddBezier(r.X + w * .50f, r.Y, r.X + w * .70f, r.Y + h * .08f, r.X + w * .85f, r.Y + h * .10f, r.X + w * .95f, r.Y + h * .10f);
-            p.AddLine(r.X + w * .95f, r.Y + h * .10f, r.X + w * .95f, r.Y + h * .48f);
-            p.AddBezier(r.X + w * .95f, r.Y + h * .48f, r.X + w * .95f, r.Y + h * .74f, r.X + w * .70f, r.Y + h * .90f, r.X + w * .50f, r.Y + h);
-            p.AddBezier(r.X + w * .50f, r.Y + h, r.X + w * .30f, r.Y + h * .90f, r.X + w * .05f, r.Y + h * .74f, r.X + w * .05f, r.Y + h * .48f);
-            p.AddLine(r.X + w * .05f, r.Y + h * .48f, r.X + w * .05f, r.Y + h * .10f);
-            p.AddBezier(r.X + w * .05f, r.Y + h * .10f, r.X + w * .15f, r.Y + h * .10f, r.X + w * .30f, r.Y + h * .08f, r.X + w * .50f, r.Y);
-            p.CloseFigure();
-            using (var pen = P(c, r, 0.09f)) g.DrawPath(pen, p);
+            using (var p = new GraphicsPath())
+            {
+                p.AddBezier(r.X + w * .50f, r.Y, r.X + w * .70f, r.Y + h * .08f, r.X + w * .85f, r.Y + h * .10f, r.X + w * .95f, r.Y + h * .10f);
+                p.AddLine(r.X + w * .95f, r.Y + h * .10f, r.X + w * .95f, r.Y + h * .48f);
+                p.AddBezier(r.X + w * .95f, r.Y + h * .48f, r.X + w * .95f, r.Y + h * .74f, r.X + w * .70f, r.Y + h * .90f, r.X + w * .50f, r.Y + h);
+                p.AddBezier(r.X + w * .50f, r.Y + h, r.X + w * .30f, r.Y + h * .90f, r.X + w * .05f, r.Y + h * .74f, r.X + w * .05f, r.Y + h * .48f);
+                p.AddLine(r.X + w * .05f, r.Y + h * .48f, r.X + w * .05f, r.Y + h * .10f);
+                p.AddBezier(r.X + w * .05f, r.Y + h * .10f, r.X + w * .15f, r.Y + h * .10f, r.X + w * .30f, r.Y + h * .08f, r.X + w * .50f, r.Y);
+                p.CloseFigure();
+                using (var pen = P(c, r, 0.09f)) g.DrawPath(pen, p);
+            }
         }
 
         // Radiation symbol — quarantine tab
