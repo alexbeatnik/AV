@@ -307,7 +307,9 @@ namespace AVUI
                 try { p.Dispose(); } catch { } // never started — no exit event will collect it
                 AppendLog(string.Format(Lang.T("log.processStartFailed"), Path.GetFileName(exe), ex.Message), Theme.Danger);
                 scan.Running = false;
-                scan.Monitor = false;
+                // scan.Monitor stays: a yara64 launch failure ends the scan through
+                // RunYaraPhase → FinishScan, which reads it to keep a monitor batch
+                // labeled as one (log/toast). Every other reader is gated by Running.
                 updateRunning = false;
                 SetBusy(false, Lang.T("status.startError"));
             }

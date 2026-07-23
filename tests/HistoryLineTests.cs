@@ -67,5 +67,58 @@ namespace AVUI.Tests
             Assert.Equal(1, MainForm.HistoryLinesThatFit(25, 8, 15),
                 "exactly one line of room shows one line");
         }
+
+        // ---- HistoryLayoutLost: detects the label losing its dock layout ----
+        // (seen in the wild: a tray-resident session left the docked label at
+        // its default 100×23 bounds and the card showed one clipped date)
+
+        public static void TestHealthyLayoutIsNotLost()
+        {
+            // card client 894 wide, 20+12 horizontal padding → label 862
+            Assert.False(MainForm.HistoryLayoutLost(862, 894, 32),
+                "a label spanning the card's content area is healthy");
+            Assert.False(MainForm.HistoryLayoutLost(860, 894, 32),
+                "±2px of border/rounding slack does not trigger a relayout");
+        }
+
+        public static void TestDefaultSizedLabelIsLost()
+        {
+            Assert.True(MainForm.HistoryLayoutLost(100, 894, 32),
+                "a label stuck at its default 100px width has lost its layout");
+        }
+
+        // The heal itself: a docked label whose bounds were clobbered is
+        // restored by one PerformLayout pass of its parent — Dock is still
+        // Fill, so the layout engine recomputes the bounds from scratch.
+        public static void TestPerformLayoutRedocksAClobberedLabel()
+        {
+            using (var row = new System.Windows.Forms.Panel())
+            using (var header = new System.Windows.Forms.Panel())
+            using (var label = new System.Windows.Forms.Label())
+            {
+                row.Size = new System.Drawing.Size(894, 107);
+                row.Padding = new System.Windows.Forms.Padding(20, 10, 12, 10);
+                label.Dock = System.Windows.Forms.DockStyle.Fill;
+                header.Dock = System.Windows.Forms.DockStyle.Top;
+                header.Height = 34;
+                row.Controls.Add(label);
+                row.Controls.Add(header);
+                // simulate the wild corruption: bounds reset, Dock untouched.
+                // SetBounds on a docked child normally triggers the parent's
+                // layout (which would re-dock it right here) — suspending the
+                // layout mimics the wild state where no layout pass ever ran
+                row.SuspendLayout();
+                label.SetBounds(20, 54, 100, 23,
+                    System.Windows.Forms.BoundsSpecified.All);
+                row.ResumeLayout(false); // keep the clobbered bounds
+                Assert.True(MainForm.HistoryLayoutLost(label.Width, row.ClientSize.Width, row.Padding.Horizontal),
+                    "the clobbered label is detected as lost");
+                row.PerformLayout();
+                Assert.Equal(894 - 20 - 12, label.Width,
+                    "one layout pass re-docks the label to the content width");
+                Assert.False(MainForm.HistoryLayoutLost(label.Width, row.ClientSize.Width, row.Padding.Horizontal),
+                    "after the heal the layout is healthy again");
+            }
+        }
     }
 }
