@@ -468,10 +468,13 @@ namespace AVUI
             lastActivityLabel.ForeColor = Theme.Muted;
             lastActivityLabel.BackColor = Theme.Card;
             lastActivityLabel.TextAlign = ContentAlignment.TopLeft;
-            // recompute the fitting line count once the label has its laid-out size.
-            // Resize fires during construction (Controls.Add lays the label out) before
-            // pages[0] is assigned, so guard the not-yet-built page reference.
+            // Recompute the fitting line count once the card has its laid-out size.
+            // The label's own Resize is not enough: when the label's layout is the
+            // thing that's lost, it never resizes again — but the card around it
+            // does. Resize fires during construction (Controls.Add lays the label
+            // out) before pages[0] is assigned, so guard the page reference.
             lastActivityLabel.Resize += delegate { if (pages != null && pages[0] != null && pages[0].Visible) RefreshHistory(); };
+            activityRow.Resize += delegate { if (pages != null && pages[0] != null && pages[0].Visible) RefreshHistory(); };
             activityRow.Controls.Add(lastActivityLabel);
             activityRow.Controls.Add(activityHeader);
 
@@ -1339,15 +1342,24 @@ namespace AVUI
             if (WindowState == FormWindowState.Minimized || NativeMethods.IsIconic(Handle)) return;
             try
             {
-                // Self-heal a lost layout pass: seen in the wild — after some
-                // handle-recreation event in a long tray-resident session the
-                // docked label sat at its default 100×23 bounds, so the card
-                // showed a single clipped date. Dock is still Fill, so when the
-                // label's width disagrees with the card's content area, one
-                // forced layout pass of the card re-docks it before measuring.
-                if (activityRow != null && HistoryLayoutLost(lastActivityLabel.Width,
-                        activityRow.ClientSize.Width, activityRow.Padding.Horizontal))
-                    activityRow.PerformLayout();
+                // Self-heal a lost layout: seen live via UI Automation — after a
+                // handle-recreation storm in a tray-resident session the docked
+                // label sat frozen at its default 100×23 inside an otherwise
+                // healthy card, so the card showed a single clipped date. A
+                // plain PerformLayout does NOT reach such a label (the layout
+                // engine no longer tracks it), so re-dock it directly: explicit
+                // SetBounds always applies. The expected rect is exactly what
+                // the dock engine would compute (the display area below the
+                // top-docked header), so a healthy engine never fights it.
+                if (activityRow != null)
+                {
+                    int topH = 0;
+                    foreach (Control c in activityRow.Controls)
+                        if (c != lastActivityLabel && c.Visible && c.Dock == DockStyle.Top) topH += c.Height;
+                    Rectangle want = HistoryLabelBounds(activityRow.DisplayRectangle, topH);
+                    if (want.Width > 0 && want.Height > 0 && HistoryBoundsLost(lastActivityLabel.Bounds, want))
+                        lastActivityLabel.SetBounds(want.X, want.Y, want.Width, want.Height, BoundsSpecified.All);
+                }
                 // how many lines fit the current card height (fixed-size window, so
                 // this is stable once laid out; recomputed on the card's Resize)
                 int max = HistoryLinesThatFit(lastActivityLabel.ClientSize.Height,
@@ -1366,13 +1378,22 @@ namespace AVUI
             catch { }
         }
 
-        // True when the activity label's width no longer matches the card's
-        // content area — the signature of a lost dock-layout pass (pure,
-        // unit-tested). A ±2px slack absorbs border/rounding differences so a
-        // healthy layout never triggers a needless PerformLayout.
-        internal static bool HistoryLayoutLost(int labelWidth, int rowClientWidth, int rowHorizontalPadding)
+        // Where the activity label belongs inside the card: the display area
+        // below the top-docked header strip (pure, unit-tested).
+        internal static Rectangle HistoryLabelBounds(Rectangle display, int topDockedHeight)
         {
-            return Math.Abs(labelWidth - (rowClientWidth - rowHorizontalPadding)) > 2;
+            return new Rectangle(display.X, display.Y + topDockedHeight,
+                display.Width, display.Height - topDockedHeight);
+        }
+
+        // True when the label's bounds disagree with the healthy docked rect —
+        // the signature of a lost layout pass (pure, unit-tested). A ±2px slack
+        // absorbs border/rounding differences so a healthy layout never
+        // triggers a needless SetBounds.
+        internal static bool HistoryBoundsLost(Rectangle actual, Rectangle expected)
+        {
+            return Math.Abs(actual.X - expected.X) > 2 || Math.Abs(actual.Y - expected.Y) > 2
+                || Math.Abs(actual.Width - expected.Width) > 2 || Math.Abs(actual.Height - expected.Height) > 2;
         }
 
         // How many scans.log lines fit the activity label (pure, unit-tested):

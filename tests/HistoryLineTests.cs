@@ -68,56 +68,100 @@ namespace AVUI.Tests
                 "exactly one line of room shows one line");
         }
 
-        // ---- HistoryLayoutLost: detects the label losing its dock layout ----
-        // (seen in the wild: a tray-resident session left the docked label at
-        // its default 100×23 bounds and the card showed one clipped date)
+        // ---- HistoryLabelBounds / HistoryBoundsLost: where the label belongs
+        // in the card, and detecting that it lost its dock layout (seen live:
+        // a tray-resident session froze the label at its default 100×23 inside
+        // a healthy card, and the card showed one clipped date) ----
 
-        public static void TestHealthyLayoutIsNotLost()
+        public static void TestHistoryLabelBounds()
         {
-            // card client 894 wide, 20+12 horizontal padding → label 862
-            Assert.False(MainForm.HistoryLayoutLost(862, 894, 32),
-                "a label spanning the card's content area is healthy");
-            Assert.False(MainForm.HistoryLayoutLost(860, 894, 32),
-                "±2px of border/rounding slack does not trigger a relayout");
+            // card display area 862×83 at (20,10), top-docked header 34 tall
+            var want = MainForm.HistoryLabelBounds(
+                new System.Drawing.Rectangle(20, 10, 862, 83), 34);
+            Assert.Equal(new System.Drawing.Rectangle(20, 44, 862, 49), want,
+                "the label gets the display area below the header");
         }
 
-        public static void TestDefaultSizedLabelIsLost()
+        public static void TestHistoryBoundsLost()
         {
-            Assert.True(MainForm.HistoryLayoutLost(100, 894, 32),
-                "a label stuck at its default 100px width has lost its layout");
+            var want = new System.Drawing.Rectangle(20, 44, 862, 49);
+            Assert.False(MainForm.HistoryBoundsLost(want, want),
+                "a label on the healthy rect is not lost");
+            Assert.False(MainForm.HistoryBoundsLost(
+                new System.Drawing.Rectangle(20, 44, 860, 49), want),
+                "±2px of border/rounding slack does not trigger a re-dock");
+            Assert.True(MainForm.HistoryBoundsLost(
+                new System.Drawing.Rectangle(20, 44, 100, 23), want),
+                "the frozen 100×23 label is detected as lost");
+            Assert.True(MainForm.HistoryBoundsLost(
+                new System.Drawing.Rectangle(20, 44, 862, 23), want),
+                "a height-only freeze is detected too");
         }
 
-        // The heal itself: a docked label whose bounds were clobbered is
-        // restored by one PerformLayout pass of its parent — Dock is still
-        // Fill, so the layout engine recomputes the bounds from scratch.
+        // A docked label whose bounds were clobbered is restored by one
+        // PerformLayout pass of its parent — Dock is still Fill, so the
+        // layout engine recomputes the bounds from scratch.
         public static void TestPerformLayoutRedocksAClobberedLabel()
         {
             using (var row = new System.Windows.Forms.Panel())
             using (var header = new System.Windows.Forms.Panel())
             using (var label = new System.Windows.Forms.Label())
             {
-                row.Size = new System.Drawing.Size(894, 107);
+                row.Size = new System.Drawing.Size(894, 103);
                 row.Padding = new System.Windows.Forms.Padding(20, 10, 12, 10);
                 label.Dock = System.Windows.Forms.DockStyle.Fill;
                 header.Dock = System.Windows.Forms.DockStyle.Top;
                 header.Height = 34;
                 row.Controls.Add(label);
                 row.Controls.Add(header);
-                // simulate the wild corruption: bounds reset, Dock untouched.
+                // simulate a corruption: bounds reset, Dock untouched.
                 // SetBounds on a docked child normally triggers the parent's
                 // layout (which would re-dock it right here) — suspending the
-                // layout mimics the wild state where no layout pass ever ran
+                // layout mimics the state where no layout pass ever ran
                 row.SuspendLayout();
-                label.SetBounds(20, 54, 100, 23,
+                label.SetBounds(20, 44, 100, 23,
                     System.Windows.Forms.BoundsSpecified.All);
                 row.ResumeLayout(false); // keep the clobbered bounds
-                Assert.True(MainForm.HistoryLayoutLost(label.Width, row.ClientSize.Width, row.Padding.Horizontal),
+                var want = MainForm.HistoryLabelBounds(row.DisplayRectangle, 34);
+                Assert.True(MainForm.HistoryBoundsLost(label.Bounds, want),
                     "the clobbered label is detected as lost");
                 row.PerformLayout();
-                Assert.Equal(894 - 20 - 12, label.Width,
+                Assert.Equal(want.Width, label.Width,
                     "one layout pass re-docks the label to the content width");
-                Assert.False(MainForm.HistoryLayoutLost(label.Width, row.ClientSize.Width, row.Padding.Horizontal),
-                    "after the heal the layout is healthy again");
+                Assert.False(MainForm.HistoryBoundsLost(label.Bounds, want),
+                    "after the layout pass the dock is healthy again");
+            }
+        }
+
+        // The wild failure mode, reproduced: a label the layout engine no
+        // longer tracks (Dock lost — the frozen state observed live) keeps its
+        // stale bounds through row.PerformLayout(), which is why the 0.1.5
+        // PerformLayout-based heal could not fix it. Explicit SetBounds — the
+        // heal RefreshHistory applies — puts it back on the content area.
+        public static void TestFrozenLabelIgnoresPerformLayoutButSetBoundsHeals()
+        {
+            using (var row = new System.Windows.Forms.Panel())
+            using (var header = new System.Windows.Forms.Panel())
+            using (var label = new System.Windows.Forms.Label())
+            {
+                row.Size = new System.Drawing.Size(894, 103);
+                row.Padding = new System.Windows.Forms.Padding(20, 10, 12, 10);
+                header.Dock = System.Windows.Forms.DockStyle.Top;
+                header.Height = 34;
+                label.Dock = System.Windows.Forms.DockStyle.None; // the lost-dock state
+                row.Controls.Add(label);
+                row.Controls.Add(header);
+                label.SetBounds(20, 44, 100, 23, System.Windows.Forms.BoundsSpecified.All);
+                var want = MainForm.HistoryLabelBounds(row.DisplayRectangle, 34);
+                Assert.True(MainForm.HistoryBoundsLost(label.Bounds, want),
+                    "the frozen label is detected as lost");
+                row.PerformLayout();
+                Assert.Equal(100, label.Width,
+                    "PerformLayout does not reach the frozen label");
+                label.SetBounds(want.X, want.Y, want.Width, want.Height,
+                    System.Windows.Forms.BoundsSpecified.All);
+                Assert.False(MainForm.HistoryBoundsLost(label.Bounds, want),
+                    "explicit SetBounds re-docks where PerformLayout could not");
             }
         }
     }
