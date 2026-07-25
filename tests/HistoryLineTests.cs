@@ -68,6 +68,52 @@ namespace AVUI.Tests
                 "exactly one line of room shows one line");
         }
 
+        // ---- RecentHistoryLines: which scans.log lines the card lists, and in
+        // which order (newest last, so the freshest scan sits at the bottom) ----
+
+        public static void TestRecentLinesKeepNewestAtTheBottom()
+        {
+            string[] log = new string[]
+            {
+                "2026-07-20 10:00  quick scan  scanned: 1",
+                "2026-07-21 10:00  quick scan  scanned: 2",
+                "2026-07-22 10:00  quick scan  scanned: 3"
+            };
+            var got = MainForm.RecentHistoryLines(log, 8);
+            Assert.Equal(3, got.Count, "every line fits");
+            Assert.Equal("20.07.2026 10:00  quick scan  scanned: 1", got[0],
+                "the oldest scan is on the first line");
+            Assert.Equal("22.07.2026 10:00  quick scan  scanned: 3", got[got.Count - 1],
+                "the newest scan is on the last line");
+        }
+
+        public static void TestRecentLinesTakeTheTailWhenTheCardIsSmall()
+        {
+            string[] log = new string[] { "a", "b", "c", "d", "e" };
+            var got = MainForm.RecentHistoryLines(log, 2);
+            Assert.Equal(2, got.Count, "only as many lines as fit");
+            Assert.Equal("d", got[0], "the tail is taken, not the head");
+            Assert.Equal("e", got[1], "and the newest line stays last");
+        }
+
+        public static void TestRecentLinesSkipBlanksWithoutSpendingSlots()
+        {
+            string[] log = new string[] { "a", "", "   ", "b", "" };
+            var got = MainForm.RecentHistoryLines(log, 2);
+            Assert.Equal(2, got.Count, "blank lines don't use up a slot");
+            Assert.Equal("a", got[0], "");
+            Assert.Equal("b", got[1], "");
+        }
+
+        public static void TestRecentLinesDegenerateInput()
+        {
+            Assert.Equal(0, MainForm.RecentHistoryLines(null, 5).Count, "null log is empty");
+            Assert.Equal(0, MainForm.RecentHistoryLines(new string[] { "a" }, 0).Count,
+                "no room means no lines");
+            Assert.Equal(0, MainForm.RecentHistoryLines(new string[0], 5).Count,
+                "an empty log is empty");
+        }
+
         // ---- HistoryLabelBounds / HistoryBoundsLost: where the label belongs
         // in the card, and detecting that it lost its dock layout (seen live:
         // a tray-resident session froze the label at its default 100×23 inside

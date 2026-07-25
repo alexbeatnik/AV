@@ -1328,9 +1328,10 @@ namespace AVUI
             if (idx == 3) { RefreshSettingsStatus(); }
         }
 
-        // Shows the last few scans.log lines, newest first, as many as fit the card
-        // without clipping — the full history is one click away via "Open Log File"
-        // (see activityRow in BuildDashboardPage).
+        // Shows the last few scans.log lines, oldest first so the newest scan is
+        // the bottom line, as many as fit the card without clipping — the full
+        // history is one click away via "Open Log File" (see activityRow in
+        // BuildDashboardPage).
         void RefreshHistory()
         {
             if (lastActivityLabel == null) return;
@@ -1366,16 +1367,28 @@ namespace AVUI
                     lastActivityLabel.Padding.Vertical, lastActivityLabel.Font.Height);
                 var recent = new List<string>();
                 if (File.Exists(scanLogPath))
-                {
-                    string[] lines = File.ReadAllLines(scanLogPath);
-                    for (int i = lines.Length - 1; i >= 0 && recent.Count < max; i--)
-                        if (lines[i].Trim().Length > 0) recent.Add(FormatHistoryLine(lines[i]));
-                }
+                    recent = RecentHistoryLines(File.ReadAllLines(scanLogPath), max);
                 lastActivityLabel.Text = recent.Count > 0
                     ? string.Join("\r\n", recent.ToArray())
                     : Lang.T("history.empty");
             }
             catch { }
+        }
+
+        // The last `max` non-empty scans.log lines, kept in file order — oldest
+        // at the top, the newest scan on the bottom line, so the card reads like
+        // the log itself and the freshest entry sits where the eye ends up
+        // (pure, unit-tested). Blank lines are skipped and don't use up a slot.
+        internal static List<string> RecentHistoryLines(string[] lines, int max)
+        {
+            var recent = new List<string>();
+            if (lines == null || max < 1) return recent;
+            // walk backwards to take the tail, then flip to chronological order
+            for (int i = lines.Length - 1; i >= 0 && recent.Count < max; i--)
+                if (lines[i] != null && lines[i].Trim().Length > 0)
+                    recent.Add(FormatHistoryLine(lines[i]));
+            recent.Reverse();
+            return recent;
         }
 
         // Where the activity label belongs inside the card: the display area
