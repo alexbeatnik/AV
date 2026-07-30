@@ -202,6 +202,20 @@ namespace AVUI
             A("status.fixWinTempFailed", "Could not restore access to C:\\Windows\\Temp (blocked by policy?).", "Не вдалося відновити доступ до C:\\Windows\\Temp (можливо, заблоковано політикою).");
             A("status.fixWinTempDone", "Access restored — C:\\Windows\\Temp is now monitored.", "Доступ відновлено — C:\\Windows\\Temp тепер під наглядом.");
 
+            A("msg.defenderExcludeConfirm", "Windows Defender deleted the YARA rule set as if it were malware. It is a false "
+                + "positive: a rule file is made of literal malware strings, which is exactly what a rule has to contain "
+                + "in order to recognise malware.\r\n\r\n"
+                + "This will tell Defender to leave one folder alone (via a one-time administrator prompt):\r\n{0}\r\n\r\n"
+                + "Only that folder is excluded — it holds the rules and nothing you open files from. Declining just "
+                + "leaves the YARA engine off; ClamAV and VirusTotal keep working. Continue?",
+                "Windows Defender видалив набір YARA-правил, вважаючи його малваре. Це хибне спрацювання: файл правил "
+                + "складається з рядків малваре — саме те, що правило й мусить містити, аби ту малваре розпізнавати.\r\n\r\n"
+                + "Зараз Defender отримає вказівку не чіпати одну теку (через одноразовий запит адміністратора):\r\n{0}\r\n\r\n"
+                + "Виключається лише вона — там лежать правила й нічого, що ви відкриваєте. Якщо відмовитись, просто "
+                + "не працюватиме рушій YARA; ClamAV і VirusTotal лишаються ввімкненими. Продовжити?");
+            A("status.defenderExcludeCancelled", "Defender exclusion cancelled — the YARA engine stays off.", "Виключення для Defender скасовано — рушій YARA лишається вимкненим.");
+            A("status.defenderExcludeDone", "Folder excluded — re-downloading the YARA rules…", "Теку виключено — завантажую YARA-правила заново…");
+
             // Threat dialog
             A("threat.title", "Threats found — what to do?", "Знайдено загрози — що робити?");
             A("col.file", "File", "Файл");
@@ -534,6 +548,10 @@ namespace AVUI
             A("log.yaraDownloadingRules", "Downloading YARA rules (YARA Forge core, ~10 MB)…\r\n", "Завантажую YARA-правила (YARA Forge core, ~10 МБ)…\r\n");
             A("log.yaraReady", "YARA engine ready: {0} rule file(s) ✔\r\n", "Рушій YARA готовий: файлів правил: {0} ✔\r\n");
             A("log.yaraSetupFailed", "YARA setup failed: {0} — will retry later.\r\n", "Не вдалося налаштувати YARA: {0} — спробую пізніше.\r\n");
+            A("log.yaraRulesTaken", "The YARA rules were deleted by the resident antivirus (a false positive on the rule text itself).\r\n",
+                "YARA-правила видалив резидентний антивірус (хибне спрацювання на самому тексті правил).\r\n");
+            A("log.yaraRulesUnpackFailed", "Could not unpack the YARA rules: {0} — skipping the YARA phase.\r\n",
+                "Не вдалося розпакувати YARA-правила: {0} — фазу YARA пропущено.\r\n");
             A("err.noYaraInArchive", "yara64.exe not found in the archive", "В архіві немає yara64.exe");
             A("err.noRulesInArchive", "no .yar rules found in the archive", "В архіві немає .yar-правил");
             A("status.yaraUpdating", "Updating YARA rules in the background…", "Оновлюю YARA-правила у фоні…");

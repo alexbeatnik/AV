@@ -50,7 +50,12 @@ namespace AVUI
             // to 128 MB) in %TEMP% — sweep them in the background; this run's own
             // files can't exist yet, and their GUID names are unique anyway
             System.Threading.ThreadPool.QueueUserWorkItem(delegate
-            { SweepStaleTempFiles(Path.GetTempPath()); });
+            {
+                SweepStaleTempFiles(Path.GetTempPath());
+                // same idea for rule working folders: a killed scan can leave
+                // plain YARA rules unpacked, which is what a resident AV eats
+                SweepYaraRunDir(YaraRunDir);
+            });
 
             // The VirusTotal cell in the engines strip shows an "offline" state —
             // refresh it the moment the network drops or comes back, not only on

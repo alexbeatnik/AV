@@ -260,6 +260,80 @@ namespace AVUI
             catch { return false; }
         }
 
+        // ---------- Windows Defender exclusion for the rules folder ----------
+        // A YARA rule file is by construction tens of thousands of literal malware
+        // strings, so a resident AV reads our own rule set as malware: Defender
+        // detects yara\rules\forge-core.yar as Trojan:HTML/Sonbokli.A!cl and deletes
+        // it, which silently leaves the YARA engine with nothing to compile.
+        // Storing the rules neutralized (MainForm.Yara.cs) covers them at rest, but
+        // yara64 has to read real text at some point, and that window can still be
+        // lost. Excluding the one folder closes it. Same shape as the C:\Windows\Temp
+        // fix: a single UAC prompt for the one thing that needs admin, after which
+        // the app goes on running unprivileged.
+
+        static void RunDefenderExcludeMode()
+        {
+            if (!IsAdmin())
+            {
+                try
+                {
+                    var psi = new ProcessStartInfo(Application.ExecutablePath, "--defender-exclude");
+                    psi.UseShellExecute = true;
+                    psi.Verb = "runas";
+                    Process.Start(psi);
+                }
+                catch { } // user declined the UAC prompt
+                return;
+            }
+            AddYaraDefenderExclusion();
+        }
+
+        // Scoped to the app's own yara folder — the stored rules and the per-scan
+        // working copies both live under it. Deliberately nothing else: the
+        // quarantine already neutralizes its contents with the same XOR, and
+        // excluding anything the user actually opens files from would be a real
+        // hole in Defender's coverage rather than a fix for ours.
+        static void AddYaraDefenderExclusion()
+        {
+            string dir = YaraDir.TrimEnd('\\');
+            Directory.CreateDirectory(dir);
+            RunHidden("powershell.exe",
+                "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
+                + "\"Add-MpPreference -ExclusionPath '" + dir.Replace("'", "''") + "'\"");
+        }
+
+        // Offered at most once per run, and only after a rules download was
+        // visibly taken by a resident AV. Declining costs only the YARA pass —
+        // the ClamAV and VirusTotal engines are unaffected.
+        bool defenderExclusionOffered;
+
+        void OfferDefenderExclusion()
+        {
+            if (defenderExclusionOffered) return;
+            defenderExclusionOffered = true;
+            if (MessageBox.Show(this, string.Format(Lang.T("msg.defenderExcludeConfirm"), YaraDir), AppName,
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            {
+                statusLabel.Text = Lang.T("status.defenderExcludeCancelled");
+                return;
+            }
+            try
+            {
+                var psi = new ProcessStartInfo(Application.ExecutablePath, "--defender-exclude");
+                psi.UseShellExecute = true;
+                psi.Verb = "runas";
+                using (var p = Process.Start(psi)) p.WaitForExit();
+            }
+            catch
+            {
+                statusLabel.Text = Lang.T("status.defenderExcludeCancelled");
+                return;
+            }
+            statusLabel.Text = Lang.T("status.defenderExcludeDone");
+            yaraRulesTaken = false;
+            EnsureYaraSetup(true); // re-fetch, now that the folder is left alone
+        }
+
         static void RunHidden(string exe, string args)
         {
             var psi = new ProcessStartInfo(exe, args);

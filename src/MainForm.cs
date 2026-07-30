@@ -189,6 +189,7 @@ namespace AVUI
                 if (a == "--install") { RunInstallMode(); return; }
                 if (a == "--uninstall") { RunUninstallMode(); return; }
                 if (a == "--fix-wintemp") { RunFixWinTempMode(); return; }
+                if (a == "--defender-exclude") { RunDefenderExcludeMode(); return; }
             }
 
             // Single instance only: if already running, ask that instance to show itself and exit
