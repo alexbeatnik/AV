@@ -24,6 +24,7 @@ namespace AVUI
         DateTime lastYaraRulesCheck;      // when the Forge rules were last downloaded (persisted)
         volatile bool yaraSetupRunning;   // an engine/rules download is already in flight
         int yaraSetupFails;               // consecutive download failures (see EnsureYaraSetup)
+        volatile bool yaraRulesTaken;     // a resident AV deleted the rules mid-install (see OfferDefenderExclusion)
         // The per-scan YARA phase state (list path, pending/expected flags, match
         // map, progress counters) lives in ScanSession — note in particular that
         // YaraPhaseExpected only drives the "Phase 1 of N" label; the phase itself
@@ -53,14 +54,110 @@ namespace AVUI
         static string YaraDir { get { return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "yara"); } }
         static string YaraExe { get { return Path.Combine(YaraDir, "yara64.exe"); } }
         static string YaraRulesDir { get { return Path.Combine(YaraDir, "rules"); } }
-        static string YaraForgeRules { get { return Path.Combine(YaraRulesDir, "forge-core.yar"); } }
+        // The Forge rule set is stored neutralized (every byte XOR 0xFF, ".yarx"),
+        // for exactly the reason quarantined files are: a .yar file is tens of
+        // thousands of literal malware strings, and a resident AV reads that as
+        // malware — Defender deletes the plain file out of our rules folder as
+        // Trojan:HTML/Sonbokli.A!cl, leaving the engine with nothing to compile.
+        // The plain text only ever exists inside a per-scan working folder, for
+        // as long as yara64 needs to read it (see MaterializeYaraRules).
+        static string YaraForgeRules { get { return Path.Combine(YaraRulesDir, "forge-core.yarx"); } }
+        // pre-0.1.7 installs stored the rules as plain text here
+        static string YaraLegacyForgeRules { get { return Path.Combine(YaraRulesDir, "forge-core.yar"); } }
         static string YaraCustomDir { get { return Path.Combine(YaraRulesDir, "custom"); } }
+        // per-scan working copies of the neutralized rules; swept on startup
+        static string YaraRunDir { get { return Path.Combine(YaraDir, "rules-run"); } }
 
-        // Forge rules first, then any user-supplied .yar/.yara files
+        // What the engine has to work with: the neutralized Forge set plus any
+        // user-supplied .yar/.yara files. These are *source* paths — only the
+        // custom ones can be handed to yara64 as they lie (MaterializeYaraRules
+        // unpacks the Forge set first).
         static List<string> YaraRuleFiles()
         {
             var list = new List<string>();
             if (File.Exists(YaraForgeRules)) list.Add(YaraForgeRules);
+            foreach (string f in YaraCustomRuleFiles()) list.Add(f);
+            return list;
+        }
+
+        bool YaraReady()
+        {
+            return yaraEnabled && File.Exists(YaraExe) && YaraRuleFiles().Count > 0;
+        }
+
+        // ---------- Neutralized rule storage ----------
+
+        static List<string> MaterializeYaraRules(out string workDir)
+        {
+            return MaterializeYaraRules(YaraForgeRules, YaraCustomRuleFiles(), YaraRunDir, out workDir);
+        }
+
+        // Unpacks the Forge set into a fresh working folder under runRoot and
+        // returns the compile-ready rule files. Custom rules are the user's own
+        // plain files and are passed through untouched. workDir is null when
+        // there was nothing to unpack (packedRules missing — a resident AV can
+        // have taken it); the caller hands it to CleanYaraRunDir afterwards.
+        internal static List<string> MaterializeYaraRules(string packedRules, List<string> customRules,
+            string runRoot, out string workDir)
+        {
+            workDir = null;
+            var list = new List<string>();
+            if (File.Exists(packedRules))
+            {
+                // a GUID folder per scan: a monitor batch racing a manual scan
+                // must not unpack over the other's file
+                string dir = Path.Combine(runRoot, Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(dir);
+                string plain = Path.Combine(dir, "forge-core.yar");
+                XorCopy(packedRules, plain); // the transform that stored it, run backwards
+                workDir = dir;
+                list.Add(plain);
+            }
+            if (customRules != null) foreach (string f in customRules) list.Add(f);
+            return list;
+        }
+
+        internal static void CleanYaraRunDir(string dir)
+        {
+            if (dir == null) return;
+            try { if (Directory.Exists(dir)) Directory.Delete(dir, true); } catch { }
+        }
+
+        // Leftover working folders from a crash or a killed scan — the plain
+        // rules in them are exactly what we don't want sitting on disk.
+        internal static void SweepYaraRunDir(string runRoot)
+        {
+            try
+            {
+                if (!Directory.Exists(runRoot)) return;
+                foreach (string d in Directory.GetDirectories(runRoot))
+                    try { Directory.Delete(d, true); } catch { }
+            }
+            catch { }
+        }
+
+        // One-time upgrade of a pre-0.1.7 install, which stored the rules as
+        // plain text: neutralize them in place. A no-op once done — and if a
+        // resident AV already ate the plain file there is nothing to migrate,
+        // so the normal download path re-fetches it in the new format.
+        internal static void MigrateLegacyForgeRules(string legacyPlain, string packed)
+        {
+            try
+            {
+                if (!File.Exists(legacyPlain)) return;
+                if (File.Exists(packed)) { File.Delete(legacyPlain); return; }
+                string part = packed + ".part";
+                if (File.Exists(part)) File.Delete(part);
+                XorCopy(legacyPlain, part);
+                PromoteDownloadedFile(part, packed);
+                File.Delete(legacyPlain);
+            }
+            catch { } // a failed migration just means the rules get re-downloaded
+        }
+
+        static List<string> YaraCustomRuleFiles()
+        {
+            var list = new List<string>();
             try
             {
                 if (Directory.Exists(YaraCustomDir))
@@ -76,11 +173,6 @@ namespace AVUI
             return list;
         }
 
-        bool YaraReady()
-        {
-            return yaraEnabled && File.Exists(YaraExe) && YaraRuleFiles().Count > 0;
-        }
-
         // ---------- Engine + rules download ----------
 
         // Fetches whatever part of the YARA setup is missing (engine exe, Forge
@@ -90,6 +182,7 @@ namespace AVUI
         void EnsureYaraSetup(bool forceRules)
         {
             if (!yaraEnabled || yaraSetupRunning) return;
+            MigrateLegacyForgeRules(YaraLegacyForgeRules, YaraForgeRules); // no-op except on the first run after 0.1.7
             bool needExe = !File.Exists(YaraExe);
             bool needRules = forceRules || !File.Exists(YaraForgeRules);
             if (!needExe && !needRules) return;
@@ -133,11 +226,20 @@ namespace AVUI
                             // the details view until a download succeeds again.
                             yaraSetupFails++;
                             AppendLog(string.Format(Lang.T("log.yaraSetupFailed"), fe), Theme.Warn, "WARN", yaraSetupFails > 1);
+                            if (yaraRulesTaken) OfferDefenderExclusion();
                             return;
                         }
                         yaraSetupFails = 0;
                         lastYaraRulesCheck = DateTime.Now;
                         SaveSettings();
+                        // A download that reported success but left nothing behind was
+                        // undone by a resident AV after the file was already in place.
+                        if (needRules && !File.Exists(YaraForgeRules))
+                        {
+                            AppendLog(Lang.T("log.yaraRulesTaken"), Theme.Warn, "WARN", false);
+                            OfferDefenderExclusion();
+                            return;
+                        }
                         AppendLog(string.Format(Lang.T("log.yaraReady"), YaraRuleFiles().Count), Theme.Good);
                         UpdateStatsUi(); // the dashboard YARA cell flips to ✓
                     });
@@ -200,7 +302,23 @@ namespace AVUI
                 if (len > bestSize) { best = f; bestSize = len; }
             }
             if (best == null) throw new Exception(Lang.T("err.noRulesInArchive"));
-            PromoteDownloadedFile(best, YaraForgeRules);
+            // Neutralize on the way in. The window where plain rules exist on
+            // disk is the extraction folder above, which is why it is deleted
+            // immediately — a resident AV that gets there first takes the file
+            // and the copy below throws, which the caller reports as a failed
+            // rules download (see OfferDefenderExclusion).
+            string part = YaraForgeRules + ".part";
+            try { if (File.Exists(part)) File.Delete(part); } catch { }
+            try { XorCopy(best, part); }
+            catch
+            {
+                // The extracted file disappearing mid-copy is the resident AV
+                // taking it, not a disk error — flagged so the setup thread can
+                // offer the one fix that helps (a rules-folder exclusion).
+                if (!File.Exists(best)) yaraRulesTaken = true;
+                throw;
+            }
+            PromoteDownloadedFile(part, YaraForgeRules);
             try { Directory.Delete(tmp, true); } catch { }
             try { File.Delete(zip); } catch { }
         }
@@ -394,11 +512,38 @@ namespace AVUI
             AppendLog(Lang.T("log.yaraScanning"), scan.Monitor ? Theme.Muted : Theme.Text, "SCAN", scan.Monitor);
             statusLabel.Text = PhasePrefix(2) + Lang.T("status.yaraScanning");
 
+            // Unpack the neutralized rules for the lifetime of this phase only.
+            // A resident AV without an exclusion for our folder can still delete
+            // the plain copy in the window between here and yara64 opening it —
+            // that shows up as an empty/missing rule file, so say what it means
+            // instead of letting yara64 fail with a bare compile error.
+            List<string> ruleFiles;
+            try
+            {
+                string runDir;
+                ruleFiles = MaterializeYaraRules(out runDir);
+                scan.YaraRunDir = runDir;
+            }
+            catch (Exception ex)
+            {
+                AppendLog(string.Format(Lang.T("log.yaraRulesUnpackFailed"), ex.Message), Theme.Warn, "WARN", false);
+                FinishScan(clamCode);
+                return;
+            }
+            if (ruleFiles.Count == 0)
+            {
+                AppendLog(Lang.T("log.yaraRulesTaken"), Theme.Warn, "WARN", false);
+                CleanYaraRunDir(scan.YaraRunDir);
+                scan.YaraRunDir = null;
+                FinishScan(clamCode);
+                return;
+            }
+
             var args = new StringBuilder();
             args.Append("-w -f -p ").Append(Math.Min(PerfMaxThreads(perfMode), Environment.ProcessorCount));
             if (chkSkipBig.Checked) args.Append(" --skip-larger=209715200"); // same 200 MB cap as ClamAV
             int ns = 0;
-            foreach (string rf in YaraRuleFiles())
+            foreach (string rf in ruleFiles)
             {
                 // each file gets its own namespace so a duplicate rule name in a
                 // custom file doesn't abort the whole compile
@@ -417,6 +562,8 @@ namespace AVUI
                 // scan.YaraRunning would mislabel the next scan's heartbeat, and the
                 // RAM dumps/list files would never be cleaned up
                 scan.YaraRunning = false;
+                CleanYaraRunDir(scan.YaraRunDir);
+                scan.YaraRunDir = null;
                 FinishScan(clamCode);
                 return;
             }
@@ -532,6 +679,11 @@ namespace AVUI
         {
             scan.YaraRunning = false;
             if (yaraProgressTimer != null) yaraProgressTimer.Stop();
+            // yara64 has read and compiled the rules by now — the plain copy has
+            // done its job and must not outlive the phase (including the cancel
+            // path below, which returns early)
+            CleanYaraRunDir(scan.YaraRunDir);
+            scan.YaraRunDir = null;
             // Stop pressed mid-phase (StopCurrent set the cancel flag and killed
             // yara64): the match list is partial — acting on it would quarantine
             // or hold back files from a scan the user abandoned. Finish as

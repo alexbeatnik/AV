@@ -67,6 +67,42 @@ has no per-app exceptions. It can only be switched off entirely (Windows
 Security → App & browser control → Smart App Control; one-way — a Windows
 reset is needed to re-enable it).
 
+### Windows Defender flags the download
+
+Defender has flagged released builds as **`Trojan:Win32/Bearfoos.B!ml`**. It
+is a false positive. The `!ml` suffix marks a verdict from Defender's cloud
+machine-learning model rather than a signature match: it is a guess about an
+unsigned .NET executable with no download history, not a detection of
+anything in the file. The same source compiled locally scans clean, and every
+release is built from this repository by the public
+[Release workflow](.github/workflows/release.yml) — you can rebuild it
+yourself with `build.ps1` and compare behaviour.
+
+If you hit it:
+
+- **Report it** — [Microsoft Security Intelligence submission](https://www.microsoft.com/en-us/wdsi/filesubmission),
+  as "Software developer". Microsoft clears confirmed false positives via a
+  signature update, usually within a few days. Reports genuinely help: each
+  release is a new file with a fresh hash, so the verdict can come back.
+- **Restore the file** — Windows Security → Protection history → allow the
+  item, or exclude the folder you keep `AV.exe` in.
+
+### Defender deletes the YARA rules
+
+A YARA rule file is, by construction, tens of thousands of literal malware
+strings — which is exactly what a resident antivirus is built to react to.
+Defender detects the plain YARA Forge rule set as
+`Trojan:HTML/Sonbokli.A!cl` and deletes it, silently leaving the YARA engine
+with nothing to compile.
+
+The app stores its rules neutralized on disk (every byte XOR `0xFF`, the same
+transform the quarantine uses) and only unpacks them into a working folder
+for as long as `yara64.exe` needs to read them, so this no longer happens on
+its own. If a scanner still takes them mid-scan, the app offers to add a
+Defender exclusion for its `yara` folder through a one-time administrator
+prompt. Declining costs only the YARA engine — ClamAV and VirusTotal are
+unaffected. Nothing else is ever excluded.
+
 ## What it can do
 
 - Scan a file, a folder, or the **whole PC**; **Scan RAM** (live process

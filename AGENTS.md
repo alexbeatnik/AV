@@ -51,7 +51,7 @@ One `MainForm` class split into partial files by concern:
 | `src/MainForm.Quarantine.cs` | neutralized `.quar` storage, index, threat dialog |
 | `src/MainForm.Monitor.cs` | FileSystemWatcher monitoring, exclusions |
 | `src/MainForm.Pause.cs` | tray "Pause protection" (1/2/5 h / until restart): stops monitoring, scheduled and USB checks; auto-resume timer; not persisted — any restart restores protection |
-| `src/MainForm.Install.cs` | per-user install/uninstall, ACL fixes |
+| `src/MainForm.Install.cs` | per-user install/uninstall, ACL fixes, the Defender rules-folder exclusion (`--defender-exclude`) |
 | `src/MainForm.Usb.cs` | USB volume-arrival prompt |
 | `src/MainForm.Yara.cs` | YARA engine: yara64/Forge-rules download, weekly rules refresh (which also upgrades yara64 itself when a newer release ships — `YaraVersionIsNewer`), the post-ClamAV scan phase (`OnScanExit` → `RunYaraPhase` → `FinishScan`); phase progress % from the process's IO read counters vs the list's total size (`YaraProgressTick`, `GetProcessIoCounters` P/Invoke) — yara64 prints nothing per file |
 | `src/MainForm.VirusTotal.cs` | VT API v3: throttled SHA256 lookups, opt-in uploads, trust tiers (`VtClassify`/`ResolvePendingYara` — YARA-only matches are held untouched until the VT verdict decides quarantine / release / user decision). Each pending entry carries its own scan's description; verdicts landing during an unrelated scan are parked in `vtLateThreats` and surfaced after it (`FlushVtLateThreats`). A scan with held-back files stays visually in phase 3 (`vtPhaseRunning`: busy hero, progress = verdicts received) until the batch drains — the last verdict closes the scan and fires the single completion toast (`VtNotifyPendingDone`); a monitor batch that briefly takes the scan state over hands the held phase back afterwards (`vtPhaseInterrupted`) |
@@ -121,6 +121,17 @@ Follow the matching rule whenever a change touches one of these areas:
   destination files).
 - **`testing`** — testable logic is exposed as `internal static` members of
   `MainForm` and covered in `tests/*.cs` (zero-dependency reflection runner).
+- **`av-false-positives`** — this project's own data trips other scanners, and
+  two cases are load-bearing. (1) YARA rules are literal malware strings, so
+  Defender eats a plain `.yar` as `Trojan:HTML/Sonbokli.A!cl`: the Forge set is
+  stored XOR-neutralized as `forge-core.yarx` and only unpacked into a per-scan
+  `yara\rules-run\<guid>` folder that `CleanYaraRunDir` removes when the phase
+  ends (`MigrateLegacyForgeRules` upgrades pre-0.1.7 installs). Never store or
+  leave rules as plain text — the quarantine's `.quar` files exist for the same
+  reason. (2) Releases are unsigned, so Defender's cloud ML has flagged the
+  built exe as `Trojan:Win32/Bearfoos.B!ml`; the fix is a false-positive report
+  to Microsoft, and `src/AssemblyInfo.cs` keeps its company/description/
+  copyright fields populated because sparse version info feeds that verdict.
 - **`release`** — the version lives in `src/AssemblyInfo.cs`; merging a bump
   to `main` publishes the GitHub Release the app self-updates from. Releases
   are deliberately unsigned (the maintainer declined the code-signing route);

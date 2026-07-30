@@ -50,6 +50,7 @@ namespace AVUI
 
         // YARA phase (see MainForm.Yara.cs)
         public string YaraListPath;      // this scan's file list, reused by the YARA pass
+        public string YaraRunDir;        // working folder holding the unpacked rules; deleted when the phase ends
         public bool YaraPhasePending;    // YARA should follow the ClamAV part
         public bool YaraPhaseExpected;   // YaraReady() snapshot at scan start — drives only the phase label
         public int YaraClamCode;         // ClamAV exit code, held while the YARA phase runs
