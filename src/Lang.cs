@@ -202,19 +202,24 @@ namespace AVUI
             A("status.fixWinTempFailed", "Could not restore access to C:\\Windows\\Temp (blocked by policy?).", "Не вдалося відновити доступ до C:\\Windows\\Temp (можливо, заблоковано політикою).");
             A("status.fixWinTempDone", "Access restored — C:\\Windows\\Temp is now monitored.", "Доступ відновлено — C:\\Windows\\Temp тепер під наглядом.");
 
-            A("msg.defenderExcludeConfirm", "Windows Defender deleted the YARA rule set as if it were malware. It is a false "
-                + "positive: a rule file is made of literal malware strings, which is exactly what a rule has to contain "
-                + "in order to recognise malware.\r\n\r\n"
-                + "This will tell Defender to leave one folder alone (via a one-time administrator prompt):\r\n{0}\r\n\r\n"
-                + "Only that folder is excluded — it holds the rules and nothing you open files from. Declining just "
-                + "leaves the YARA engine off; ClamAV and VirusTotal keep working. Continue?",
-                "Windows Defender видалив набір YARA-правил, вважаючи його малваре. Це хибне спрацювання: файл правил "
-                + "складається з рядків малваре — саме те, що правило й мусить містити, аби ту малваре розпізнавати.\r\n\r\n"
-                + "Зараз Defender отримає вказівку не чіпати одну теку (через одноразовий запит адміністратора):\r\n{0}\r\n\r\n"
-                + "Виключається лише вона — там лежать правила й нічого, що ви відкриваєте. Якщо відмовитись, просто "
-                + "не працюватиме рушій YARA; ClamAV і VirusTotal лишаються ввімкненими. Продовжити?");
+            A("msg.defenderExcludeConfirm", "The YARA engine needs Windows Defender to leave one folder alone:\r\n{0}\r\n\r\n"
+                + "A rule file is made of literal malware strings — which is exactly what a rule has to contain in order "
+                + "to recognise malware — so Defender reads the rule set as malware and deletes it. This app keeps its "
+                + "rules neutralized on disk to avoid that, but yara64 has to read them as plain text in order to scan, "
+                + "and Defender takes that copy within about a second.\r\n\r\n"
+                + "Only this one folder is excluded: it holds the rules and nothing you open files from. Setting it "
+                + "requires a one-time administrator prompt. Declining just leaves the YARA engine off — ClamAV and "
+                + "VirusTotal keep working. Continue?",
+                "Рушієві YARA потрібно, щоб Windows Defender не чіпав одну теку:\r\n{0}\r\n\r\n"
+                + "Файл правил складається з рядків малваре — саме те, що правило й мусить містити, аби ту малваре "
+                + "розпізнавати, — тож Defender сприймає набір правил як малваре й видаляє його. Програма зберігає свої "
+                + "правила на диску нейтралізованими, щоб цього не сталося, але для сканування yara64 мусить прочитати "
+                + "їх відкритим текстом, і Defender забирає цю копію приблизно за секунду.\r\n\r\n"
+                + "Виключається лише ця тека: у ній лежать правила й нічого, що ви відкриваєте. Потрібен одноразовий "
+                + "запит адміністратора. Якщо відмовитись, просто не працюватиме рушій YARA — ClamAV і VirusTotal "
+                + "лишаються ввімкненими. Продовжити?");
             A("status.defenderExcludeCancelled", "Defender exclusion cancelled — the YARA engine stays off.", "Виключення для Defender скасовано — рушій YARA лишається вимкненим.");
-            A("status.defenderExcludeDone", "Folder excluded — re-downloading the YARA rules…", "Теку виключено — завантажую YARA-правила заново…");
+            A("status.defenderExcludeDone", "Folder excluded — the YARA engine can read its rules.", "Теку виключено — рушій YARA може читати свої правила.");
 
             // Threat dialog
             A("threat.title", "Threats found — what to do?", "Знайдено загрози — що робити?");

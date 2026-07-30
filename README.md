@@ -95,13 +95,20 @@ Defender detects the plain YARA Forge rule set as
 `Trojan:HTML/Sonbokli.A!cl` and deletes it, silently leaving the YARA engine
 with nothing to compile.
 
-The app stores its rules neutralized on disk (every byte XOR `0xFF`, the same
-transform the quarantine uses) and only unpacks them into a working folder
-for as long as `yara64.exe` needs to read them, so this no longer happens on
-its own. If a scanner still takes them mid-scan, the app offers to add a
-Defender exclusion for its `yara` folder through a one-time administrator
-prompt. Declining costs only the YARA engine — ClamAV and VirusTotal are
-unaffected. Nothing else is ever excluded.
+The app never writes its rules to disk in plain form: they are streamed
+straight out of the downloaded archive through an XOR (the same transform the
+quarantine applies to `.quar` files) into `forge-core.yarx`, and the archive
+itself is held in memory. Downloading and storing the rules is therefore
+safe on its own.
+
+Scanning is not. `yara64.exe` has to read real rule text, and a plain `.yar`
+written anywhere Defender watches is taken within about a second — measured,
+not assumed. So the app asks once, as soon as it has rules, to add a Defender
+exclusion for its own `yara` folder through a one-time administrator prompt.
+**The YARA engine cannot work without it while Defender's real-time
+protection is on.** Only that folder is excluded; it holds the rules and
+nothing you open files from. Declining costs only the YARA pass — ClamAV and
+VirusTotal keep working.
 
 ## What it can do
 

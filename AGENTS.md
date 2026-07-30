@@ -123,15 +123,22 @@ Follow the matching rule whenever a change touches one of these areas:
   `MainForm` and covered in `tests/*.cs` (zero-dependency reflection runner).
 - **`av-false-positives`** — this project's own data trips other scanners, and
   two cases are load-bearing. (1) YARA rules are literal malware strings, so
-  Defender eats a plain `.yar` as `Trojan:HTML/Sonbokli.A!cl`: the Forge set is
-  stored XOR-neutralized as `forge-core.yarx` and only unpacked into a per-scan
-  `yara\rules-run\<guid>` folder that `CleanYaraRunDir` removes when the phase
-  ends (`MigrateLegacyForgeRules` upgrades pre-0.1.7 installs). Never store or
-  leave rules as plain text — the quarantine's `.quar` files exist for the same
-  reason. (2) Releases are unsigned, so Defender's cloud ML has flagged the
-  built exe as `Trojan:Win32/Bearfoos.B!ml`; the fix is a false-positive report
-  to Microsoft, and `src/AssemblyInfo.cs` keeps its company/description/
-  copyright fields populated because sparse version info feeds that verdict.
+  Defender eats a plain `.yar` as `Trojan:HTML/Sonbokli.A!cl` — within about a
+  second of the write, reliably, which is why extracting the Forge archive to
+  disk and neutralizing afterwards does **not** work (0.1.7 shipped that bug
+  and the rules download failed every time). `DownloadYaraForgeRules` streams
+  the archive entry through `XorStream` into `forge-core.yarx` with the zip
+  held in memory, so no plain copy is ever created; `MaterializeYaraRules`
+  unpacks per scan into `yara\rules-run\<guid>` and `CleanYaraRunDir` removes
+  it when the phase ends (`MigrateLegacyForgeRules` upgrades pre-0.1.7
+  installs). That per-scan copy is unavoidable — yara64 needs a real file — so
+  the `yara` folder needs a Defender exclusion (`--defender-exclude`), offered
+  once proactively; the engine genuinely cannot run without it under RTP.
+  Never let plain rules touch the disk outside that folder. (2) Releases are
+  unsigned, so Defender's cloud ML has flagged the built exe as
+  `Trojan:Win32/Bearfoos.B!ml`; the fix is a false-positive report to
+  Microsoft, and `src/AssemblyInfo.cs` keeps its company/description/copyright
+  fields populated because sparse version info feeds that verdict.
 - **`release`** — the version lives in `src/AssemblyInfo.cs`; merging a bump
   to `main` publishes the GitHub Release the app self-updates from. Releases
   are deliberately unsigned (the maintainer declined the code-signing route);
