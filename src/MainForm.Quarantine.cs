@@ -41,12 +41,20 @@ namespace AVUI
 
         internal static void XorCopy(string src, string dst)
         {
-            using (var fin = File.OpenRead(src))
+            using (var fin = File.OpenRead(src)) XorStream(fin, dst);
+        }
+
+        // The same transform from an already-open source. The YARA rules are
+        // written straight out of the downloaded archive through this, so no
+        // plain copy of them is ever created on disk for a resident AV to take
+        // (see DownloadYaraForgeRules).
+        internal static void XorStream(Stream src, string dst)
+        {
             using (var fout = new FileStream(dst, FileMode.CreateNew, FileAccess.Write))
             {
                 var buf = new byte[81920];
                 int n;
-                while ((n = fin.Read(buf, 0, buf.Length)) > 0)
+                while ((n = src.Read(buf, 0, buf.Length)) > 0)
                 {
                     for (int i = 0; i < n; i++) buf[i] ^= 0xFF;
                     fout.Write(buf, 0, n);

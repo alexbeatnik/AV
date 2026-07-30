@@ -302,15 +302,25 @@ namespace AVUI
                 + "\"Add-MpPreference -ExclusionPath '" + dir.Replace("'", "''") + "'\"");
         }
 
-        // Offered at most once per run, and only after a rules download was
-        // visibly taken by a resident AV. Declining costs only the YARA pass —
-        // the ClamAV and VirusTotal engines are unaffected.
-        bool defenderExclusionOffered;
+        bool defenderExclusionOffered;   // already asked in this run
+        bool yaraExclusionAsked;         // asked in an earlier run too (settings.ini)
 
-        void OfferDefenderExclusion()
+        // The exclusion is not a nicety: yara64 has to read real rule text, and
+        // Defender takes a plain .yar off the disk within about a second of it
+        // being written — measured, not assumed. So the offer is made once,
+        // proactively, as soon as there are rules to scan with.
+        //
+        // proactive=false means the rules were actually taken during a scan, so
+        // the engine has visibly failed; that is worth asking again once per run
+        // even when an earlier run's answer was no. Declining costs only the
+        // YARA pass — ClamAV and VirusTotal are unaffected.
+        void OfferDefenderExclusion(bool proactive)
         {
             if (defenderExclusionOffered) return;
+            if (proactive && yaraExclusionAsked) return;
             defenderExclusionOffered = true;
+            yaraExclusionAsked = true;
+            SaveSettings(); // asked once, whatever the answer turns out to be
             if (MessageBox.Show(this, string.Format(Lang.T("msg.defenderExcludeConfirm"), YaraDir), AppName,
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
             {
@@ -331,7 +341,9 @@ namespace AVUI
             }
             statusLabel.Text = Lang.T("status.defenderExcludeDone");
             yaraRulesTaken = false;
-            EnsureYaraSetup(true); // re-fetch, now that the folder is left alone
+            // Only the reactive case has actually lost its rules; re-fetching
+            // 8 MB when they are sitting right there would be for nothing.
+            if (!File.Exists(YaraForgeRules)) EnsureYaraSetup(true);
         }
 
         static void RunHidden(string exe, string args)

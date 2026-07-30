@@ -13,5 +13,5 @@ using System.Reflection;
 [assembly: AssemblyDescription("Multi-engine antivirus UI for Windows: ClamAV signatures, YARA rules and VirusTotal hash lookups.")]
 [assembly: AssemblyCompany("Oleksii Poliakov")]
 [assembly: AssemblyCopyright("Copyright 2026 Oleksii Poliakov — Apache License 2.0")]
-[assembly: AssemblyVersion("0.1.7.0")]
-[assembly: AssemblyFileVersion("0.1.7.0")]
+[assembly: AssemblyVersion("0.1.8.0")]
+[assembly: AssemblyFileVersion("0.1.8.0")]

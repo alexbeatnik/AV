@@ -361,6 +361,7 @@ namespace AVUI
                         DateTime dt;
                         if (TryParseTicks(t.Substring(14), out dt)) lastYaraRulesCheck = dt;
                     }
+                    else if (t == "yaraexcluded=1") yaraExclusionAsked = true;
                     else if (t == "autostartinit=1") autostartInitialized = true;
                     else if (t == "modeasked=1") { modeAsked = true; modeAskedSeen = true; }
                     else if (t == "modeasked=0") modeAskedSeen = true;
@@ -521,6 +522,7 @@ namespace AVUI
             sb.AppendLine("vtcheck=" + (vtCheckEnabled ? "1" : "0"));
             sb.AppendLine("vtupload=" + (vtUploadEnabled ? "1" : "0"));
             sb.AppendLine("lastyararules=" + lastYaraRulesCheck.Ticks);
+            sb.AppendLine("yaraexcluded=" + (yaraExclusionAsked ? "1" : "0"));
             sb.AppendLine("sched=" + (schedMode == 0 ? "off" : schedMode == 1 ? "daily" : "weekly"));
             sb.AppendLine("lastsched=" + lastScheduledScan.Ticks);
             sb.AppendLine("autostartinit=" + (autostartInitialized ? "1" : "0"));

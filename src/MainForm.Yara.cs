@@ -226,7 +226,7 @@ namespace AVUI
                             // the details view until a download succeeds again.
                             yaraSetupFails++;
                             AppendLog(string.Format(Lang.T("log.yaraSetupFailed"), fe), Theme.Warn, "WARN", yaraSetupFails > 1);
-                            if (yaraRulesTaken) OfferDefenderExclusion();
+                            if (yaraRulesTaken) OfferDefenderExclusion(false);
                             return;
                         }
                         yaraSetupFails = 0;
@@ -237,11 +237,15 @@ namespace AVUI
                         if (needRules && !File.Exists(YaraForgeRules))
                         {
                             AppendLog(Lang.T("log.yaraRulesTaken"), Theme.Warn, "WARN", false);
-                            OfferDefenderExclusion();
+                            OfferDefenderExclusion(false);
                             return;
                         }
                         AppendLog(string.Format(Lang.T("log.yaraReady"), YaraRuleFiles().Count), Theme.Good);
                         UpdateStatsUi(); // the dashboard YARA cell flips to ✓
+                        // There are rules to scan with now, so ask for the
+                        // exclusion they need before the first scan runs into
+                        // the problem rather than after.
+                        OfferDefenderExclusion(true);
                     });
                 }
                 catch { }
@@ -280,47 +284,58 @@ namespace AVUI
             try { File.Delete(zip); } catch { }
         }
 
+        // The rules go from the archive into their neutralized file entirely in
+        // memory. Extracting to disk first — the obvious implementation, and
+        // what this used to do — does not work: Defender detects a plain .yar as
+        // Trojan:HTML/Sonbokli.A!cl the instant it is written and deletes it,
+        // reliably enough that the extracted copy never survived long enough to
+        // be read back, so the rules download failed every single time. The
+        // archive is held in memory for the same reason it isn't unpacked: the
+        // core package is a couple of MB, so there is nothing to gain by
+        // staging it on disk and a detection to lose.
         void DownloadYaraForgeRules()
         {
             UiLog(Lang.T("log.yaraDownloadingRules"), Theme.Muted);
-            string zip = Path.Combine(YaraDir, "rules-download.zip");
+            byte[] archive;
             using (var wc = new System.Net.WebClient())
             {
                 wc.Headers.Add("User-Agent", "AV");
-                wc.DownloadFile(YaraForgeZip, zip);
+                archive = wc.DownloadData(YaraForgeZip);
             }
-            string tmp = Path.Combine(YaraDir, "rules-tmp");
-            if (Directory.Exists(tmp)) Directory.Delete(tmp, true);
-            System.IO.Compression.ZipFile.ExtractToDirectory(zip, tmp);
-            // the package contains packages/core/yara-rules-core.yar — take the
-            // biggest .yar in the archive so a layout change doesn't break us
-            string best = null;
-            long bestSize = 0;
-            foreach (string f in Directory.GetFiles(tmp, "*.yar", SearchOption.AllDirectories))
-            {
-                long len = new FileInfo(f).Length;
-                if (len > bestSize) { best = f; bestSize = len; }
-            }
-            if (best == null) throw new Exception(Lang.T("err.noRulesInArchive"));
-            // Neutralize on the way in. The window where plain rules exist on
-            // disk is the extraction folder above, which is why it is deleted
-            // immediately — a resident AV that gets there first takes the file
-            // and the copy below throws, which the caller reports as a failed
-            // rules download (see OfferDefenderExclusion).
+            Directory.CreateDirectory(YaraRulesDir);
             string part = YaraForgeRules + ".part";
             try { if (File.Exists(part)) File.Delete(part); } catch { }
-            try { XorCopy(best, part); }
-            catch
+            using (var mem = new MemoryStream(archive))
+            using (var zip = new System.IO.Compression.ZipArchive(mem, System.IO.Compression.ZipArchiveMode.Read))
             {
-                // The extracted file disappearing mid-copy is the resident AV
-                // taking it, not a disk error — flagged so the setup thread can
-                // offer the one fix that helps (a rules-folder exclusion).
-                if (!File.Exists(best)) yaraRulesTaken = true;
-                throw;
+                // the package contains packages/core/yara-rules-core.yar — take
+                // the biggest .yar entry so a layout change doesn't break us
+                System.IO.Compression.ZipArchiveEntry best = null;
+                foreach (System.IO.Compression.ZipArchiveEntry e in zip.Entries)
+                {
+                    if (!e.FullName.EndsWith(".yar", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (best == null || e.Length > best.Length) best = e;
+                }
+                if (best == null) throw new Exception(Lang.T("err.noRulesInArchive"));
+                using (Stream src = best.Open()) XorStream(src, part);
             }
             PromoteDownloadedFile(part, YaraForgeRules);
-            try { Directory.Delete(tmp, true); } catch { }
-            try { File.Delete(zip); } catch { }
+            CleanLegacyRulesDownload(); // leftovers from the extract-to-disk days
+        }
+
+        // Older versions staged the download as yara\rules-download.zip and
+        // unpacked it into yara\rules-tmp\. Both can still be sitting there —
+        // rules-tmp in particular holds a plain .yar — so they are removed on
+        // the first successful download after the upgrade.
+        static void CleanLegacyRulesDownload()
+        {
+            try
+            {
+                string tmp = Path.Combine(YaraDir, "rules-tmp");
+                if (Directory.Exists(tmp)) Directory.Delete(tmp, true);
+            }
+            catch { }
+            try { File.Delete(Path.Combine(YaraDir, "rules-download.zip")); } catch { }
         }
 
         static string FindFileUnder(string dir, string name)
@@ -532,10 +547,17 @@ namespace AVUI
             }
             if (ruleFiles.Count == 0)
             {
+                // The rules were there when YaraReady() was checked and are gone
+                // now — a resident AV took them between the two. Offer the fix,
+                // but only after this scan has been closed out: the prompt is
+                // modal, and posting it keeps it off the phase teardown.
                 AppendLog(Lang.T("log.yaraRulesTaken"), Theme.Warn, "WARN", false);
+                yaraRulesTaken = true;
                 CleanYaraRunDir(scan.YaraRunDir);
                 scan.YaraRunDir = null;
                 FinishScan(clamCode);
+                try { BeginInvoke((Action)delegate { OfferDefenderExclusion(false); }); }
+                catch { }
                 return;
             }
 
