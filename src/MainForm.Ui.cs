@@ -106,6 +106,13 @@ namespace AVUI
                     return;
                 }
                 if (clamDir == null) OfferClamAVDownload();
+                // An installed copy is what Defender's cloud keeps taking — AV.exe,
+                // both shortcuts, the Run value and the Uninstall key, in one
+                // remediation. So the exclusion that prevents that is offered on the
+                // first run of an install, not only from the YARA path: that path
+                // covers the rules half of the same problem, and never runs at all
+                // for someone with yara=0.
+                if (IsInstalled) OfferDefenderExclusion(true);
             };
         }
 

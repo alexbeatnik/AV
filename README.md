@@ -67,25 +67,44 @@ has no per-app exceptions. It can only be switched off entirely (Windows
 Security → App & browser control → Smart App Control; one-way — a Windows
 reset is needed to re-enable it).
 
-### Windows Defender flags the download
+### Windows Defender deletes the app
 
-Defender has flagged released builds as **`Trojan:Win32/Bearfoos.B!ml`**. It
-is a false positive. The `!ml` suffix marks a verdict from Defender's cloud
-machine-learning model rather than a signature match: it is a guess about an
-unsigned .NET executable with no download history, not a detection of
-anything in the file. The same source compiled locally scans clean, and every
-release is built from this repository by the public
-[Release workflow](.github/workflows/release.yml) — you can rebuild it
-yourself with `build.ps1` and compare behaviour.
+Defender has flagged released builds as **`Trojan:Win32/Bearfoos.B!ml`** and
+later as **`Trojan:Win32/Sonbokli.A!cl`**. Both are false positives, and the
+suffixes say so: `!ml` is a verdict from the cloud machine-learning model,
+`!cl` a cloud-delivered one. Neither is a signature match on anything in the
+file — they are judgements about an unsigned .NET executable with no download
+reputation.
+
+Measured, not assumed: the released `AV.exe` is quarantined within a couple of
+seconds of being downloaded, into any folder, while **the same source built
+locally with `build.ps1` scans clean and is left alone**. The two binaries
+differ only in their hash. Every release is built from this repository by the
+public [Release workflow](.github/workflows/release.yml), so you can rebuild
+it yourself and compare.
+
+What makes this worse than a download warning: when Defender acts on the
+verdict it removes the whole installation in one go — `AV.exe`, both
+shortcuts, the autostart value and the "Apps" entry. The app is uninstalled
+without being asked.
 
 If you hit it:
 
+- **Let the app exclude its own folder.** An installed copy offers this on
+  first run through a one-time administrator prompt; it is the same exclusion
+  the YARA engine needs (below), and it covers the exe too. Portable copies
+  are only offered the narrow `yara` exclusion — the folder you dropped the
+  exe into is yours, not the app's, and excluding it would be a real hole.
 - **Report it** — [Microsoft Security Intelligence submission](https://www.microsoft.com/en-us/wdsi/filesubmission),
   as "Software developer". Microsoft clears confirmed false positives via a
-  signature update, usually within a few days. Reports genuinely help: each
-  release is a new file with a fresh hash, so the verdict can come back.
+  signature update, usually within a few days. Reports genuinely help, and are
+  the only thing that actually removes the verdict. Each release is a new file
+  with a fresh hash, so it has to be redone per release.
 - **Restore the file** — Windows Security → Protection history → allow the
-  item, or exclude the folder you keep `AV.exe` in.
+  item. Add the exclusion *first*: a restored file with a live verdict on it is
+  taken again immediately. Note that self-update will re-download the flagged
+  build from GitHub Releases, so an exclusion (or `autoupdate=0`) is what makes
+  the restore stick.
 
 ### Defender deletes the YARA rules
 
@@ -103,12 +122,17 @@ safe on its own.
 
 Scanning is not. `yara64.exe` has to read real rule text, and a plain `.yar`
 written anywhere Defender watches is taken within about a second — measured,
-not assumed. So the app asks once, as soon as it has rules, to add a Defender
-exclusion for its own `yara` folder through a one-time administrator prompt.
-**The YARA engine cannot work without it while Defender's real-time
-protection is on.** Only that folder is excluded; it holds the rules and
-nothing you open files from. Declining costs only the YARA pass — ClamAV and
-VirusTotal keep working.
+not assumed. So the app asks once, through a one-time administrator prompt,
+for a Defender exclusion. **The YARA engine cannot work without it while
+Defender's real-time protection is on.**
+
+What gets excluded depends on where the app lives. An **install**
+(`%LocalAppData%\Programs\AV`) excludes that folder: the app's own binaries,
+its rules, and a quarantine whose contents are already stored neutralized —
+nothing you open documents from. That single exclusion also keeps `AV.exe`
+itself from being quarantined (above). A **portable** copy excludes only its
+`yara` subfolder, never the folder you put the exe in. Declining leaves the
+YARA pass off — ClamAV and VirusTotal keep working.
 
 ## What it can do
 

@@ -6,8 +6,10 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
+using System.Management;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -242,13 +244,30 @@ namespace AVUI
             FixWinTempAcl();
         }
 
+        // Written through .NET's own ACL API rather than by shelling out to icacls:
+        // two hidden console processes rewriting permissions under C:\Windows is a
+        // shape heuristics recognise malware by, and this app is already losing that
+        // argument over its own exe (see the Defender exclusion below). Same result,
+        // no child process.
         static void FixWinTempAcl()
         {
             string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp");
+            var di = new DirectoryInfo(dir);
+            DirectorySecurity sec = di.GetAccessControl(AccessControlSections.Access);
+            var users = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
+            var everyone = new SecurityIdentifier(WellKnownSidType.WorldSid, null);
             // strip any explicit Deny for Users/Everyone first — an Allow we add below
-            // can't override a Deny, so without this the grant could silently no-op
-            RunHidden("icacls", "\"" + dir + "\" /remove:d *S-1-5-32-545 *S-1-1-0");
-            RunHidden("icacls", "\"" + dir + "\" /grant *S-1-5-32-545:(RX)");
+            // can't override a Deny, so without this the grant could silently no-op.
+            // RemoveAccessRuleAll ignores the rights of the rule it is handed and
+            // drops every Deny for that identity, which is what /remove:d did.
+            sec.RemoveAccessRuleAll(new FileSystemAccessRule(users, FileSystemRights.FullControl, AccessControlType.Deny));
+            sec.RemoveAccessRuleAll(new FileSystemAccessRule(everyone, FileSystemRights.FullControl, AccessControlType.Deny));
+            // this folder only, no inheritance — exactly what
+            // `icacls <dir> /grant *S-1-5-32-545:(RX)` granted. We need to list the
+            // directory, not to read what other users dropped in it.
+            sec.AddAccessRule(new FileSystemAccessRule(users, FileSystemRights.ReadAndExecute,
+                InheritanceFlags.None, PropagationFlags.None, AccessControlType.Allow));
+            di.SetAccessControl(sec);
         }
 
         // Cheap capability probe: FileSystemWatcher needs at least list access to the
@@ -260,16 +279,46 @@ namespace AVUI
             catch { return false; }
         }
 
-        // ---------- Windows Defender exclusion for the rules folder ----------
-        // A YARA rule file is by construction tens of thousands of literal malware
-        // strings, so a resident AV reads our own rule set as malware: Defender
-        // detects yara\rules\forge-core.yar as Trojan:HTML/Sonbokli.A!cl and deletes
-        // it, which silently leaves the YARA engine with nothing to compile.
-        // Storing the rules neutralized (MainForm.Yara.cs) covers them at rest, but
-        // yara64 has to read real text at some point, and that window can still be
-        // lost. Excluding the one folder closes it. Same shape as the C:\Windows\Temp
-        // fix: a single UAC prompt for the one thing that needs admin, after which
-        // the app goes on running unprivileged.
+        // ---------- Windows Defender exclusion for the app's own folder ----------
+        // Two of this app's own files read as malware to a resident scanner, for
+        // reasons that have nothing to do with what they contain or do.
+        //
+        // (1) A YARA rule file is by construction tens of thousands of literal
+        // malware strings, so Defender reads our own rule set as malware and
+        // deletes it (Trojan:HTML/Sonbokli.A!cl), silently leaving the engine with
+        // nothing to compile. Storing the rules neutralized (MainForm.Yara.cs)
+        // covers them at rest, but yara64 has to read real text at some point.
+        //
+        // (2) The released exe is unsigned and has no download reputation, and
+        // Defender's cloud has repeatedly issued a verdict on that basis alone —
+        // Trojan:Win32/Bearfoos.B!ml, then Trojan:Win32/Sonbokli.A!cl. Verified:
+        // the release binary is quarantined within seconds of download while the
+        // same source built locally scans clean, so the verdict rides on the file's
+        // hash and reputation, not on anything in it. Remediation takes AV.exe, both
+        // shortcuts, the Run value and the Uninstall key together — it uninstalls
+        // the app out from under the user.
+        //
+        // One exclusion covers both, so an install excludes the install folder
+        // rather than just yara\. Same shape as the C:\Windows\Temp fix: a single
+        // UAC prompt for the one thing that needs admin, after which the app goes
+        // on running unprivileged.
+
+        // Portable runs deliberately keep the narrow yara-only scope. The app's
+        // "own folder" is then whatever the user dropped the exe into — Downloads,
+        // a USB stick, the desktop — and excluding that would be a real hole in
+        // Defender's coverage rather than a fix for ours. Installed, the folder is
+        // %LocalAppData%\Programs\AV: our binaries, our rules and a quarantine
+        // whose contents are already XOR-neutralized, and nothing the user opens
+        // documents from.
+        internal static string DefenderExclusionDirFor(bool installed, string installDir, string yaraDir)
+        {
+            return (installed ? installDir : yaraDir).TrimEnd('\\');
+        }
+
+        static string DefenderExclusionDir
+        {
+            get { return DefenderExclusionDirFor(IsInstalled, InstallDir, YaraDir); }
+        }
 
         static void RunDefenderExcludeMode()
         {
@@ -285,73 +334,93 @@ namespace AVUI
                 catch { } // user declined the UAC prompt
                 return;
             }
-            AddYaraDefenderExclusion();
+            // the caller waits on this process and reads its exit code — Tamper
+            // Protection and managed-endpoint policy both refuse exclusion changes,
+            // and reporting success there would be a lie
+            try { AddDefenderExclusion(DefenderExclusionDir); }
+            catch { Environment.ExitCode = 1; }
         }
 
-        // Scoped to the app's own yara folder — the stored rules and the per-scan
-        // working copies both live under it. Deliberately nothing else: the
-        // quarantine already neutralizes its contents with the same XOR, and
-        // excluding anything the user actually opens files from would be a real
-        // hole in Defender's coverage rather than a fix for ours.
-        static void AddYaraDefenderExclusion()
+        // Calls Defender's own WMI provider — the one Add-MpPreference drives —
+        // instead of shelling out to `powershell -ExecutionPolicy Bypass -Command
+        // Add-MpPreference` in a hidden window. Identical result, but a hidden
+        // script host spawned by an unsigned binary to add an antivirus exclusion
+        // is textbook "malware switching off its own detection", and this app is
+        // already fighting heuristic verdicts on its exe. No reason to hand the
+        // model that pattern as well.
+        static void AddDefenderExclusion(string dir)
         {
-            string dir = YaraDir.TrimEnd('\\');
             Directory.CreateDirectory(dir);
-            RunHidden("powershell.exe",
-                "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "
-                + "\"Add-MpPreference -ExclusionPath '" + dir.Replace("'", "''") + "'\"");
+            using (var cls = new ManagementClass(@"\\.\root\Microsoft\Windows\Defender:MSFT_MpPreference"))
+            using (ManagementBaseObject args = cls.GetMethodParameters("Add"))
+            {
+                args["ExclusionPath"] = new string[] { dir };
+                using (cls.InvokeMethod("Add", args, null)) { }
+            }
         }
 
         bool defenderExclusionOffered;   // already asked in this run
-        bool yaraExclusionAsked;         // asked in an earlier run too (settings.ini)
+        bool yaraExclusionAsked;         // yara-folder scope, asked in an earlier run (settings.ini)
+        // Install-folder scope, tracked separately: installs that already answered
+        // the narrow yara question in 0.1.7/0.1.8 must still be asked once about the
+        // wider exclusion, since only that one keeps AV.exe itself alive.
+        bool appExclusionAsked;
+
+        bool DefenderExclusionAsked
+        {
+            get { return IsInstalled ? appExclusionAsked : yaraExclusionAsked; }
+        }
 
         // The exclusion is not a nicety: yara64 has to read real rule text, and
         // Defender takes a plain .yar off the disk within about a second of it
-        // being written — measured, not assumed. So the offer is made once,
-        // proactively, as soon as there are rules to scan with.
+        // being written — measured, not assumed — while the exe itself is taken on
+        // whatever day the cloud decides. So the offer is made once, proactively.
         //
         // proactive=false means the rules were actually taken during a scan, so
         // the engine has visibly failed; that is worth asking again once per run
-        // even when an earlier run's answer was no. Declining costs only the
-        // YARA pass — ClamAV and VirusTotal are unaffected.
+        // even when an earlier run's answer was no. Declining an install-wide
+        // exclusion costs the YARA pass and leaves the exe exposed; declining the
+        // portable one costs only the YARA pass — ClamAV and VirusTotal are
+        // unaffected either way.
         void OfferDefenderExclusion(bool proactive)
         {
             if (defenderExclusionOffered) return;
-            if (proactive && yaraExclusionAsked) return;
+            if (proactive && DefenderExclusionAsked) return;
             defenderExclusionOffered = true;
-            yaraExclusionAsked = true;
+            bool wide = IsInstalled;
+            if (wide) appExclusionAsked = true; else yaraExclusionAsked = true;
             SaveSettings(); // asked once, whatever the answer turns out to be
-            if (MessageBox.Show(this, string.Format(Lang.T("msg.defenderExcludeConfirm"), YaraDir), AppName,
-                MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            if (MessageBox.Show(this,
+                string.Format(Lang.T(wide ? "msg.defenderExcludeAppConfirm" : "msg.defenderExcludeConfirm"),
+                    DefenderExclusionDir),
+                AppName, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
             {
-                statusLabel.Text = Lang.T("status.defenderExcludeCancelled");
+                statusLabel.Text = Lang.T(wide ? "status.defenderExcludeAppCancelled" : "status.defenderExcludeCancelled");
                 return;
             }
+            int code;
             try
             {
                 var psi = new ProcessStartInfo(Application.ExecutablePath, "--defender-exclude");
                 psi.UseShellExecute = true;
                 psi.Verb = "runas";
-                using (var p = Process.Start(psi)) p.WaitForExit();
+                using (var p = Process.Start(psi)) { p.WaitForExit(); code = p.ExitCode; }
             }
             catch
             {
-                statusLabel.Text = Lang.T("status.defenderExcludeCancelled");
+                statusLabel.Text = Lang.T(wide ? "status.defenderExcludeAppCancelled" : "status.defenderExcludeCancelled");
                 return;
             }
-            statusLabel.Text = Lang.T("status.defenderExcludeDone");
+            if (code != 0)
+            {
+                statusLabel.Text = Lang.T("status.defenderExcludeFailed");
+                return;
+            }
+            statusLabel.Text = Lang.T(wide ? "status.defenderExcludeAppDone" : "status.defenderExcludeDone");
             yaraRulesTaken = false;
             // Only the reactive case has actually lost its rules; re-fetching
             // 8 MB when they are sitting right there would be for nothing.
             if (!File.Exists(YaraForgeRules)) EnsureYaraSetup(true);
-        }
-
-        static void RunHidden(string exe, string args)
-        {
-            var psi = new ProcessStartInfo(exe, args);
-            psi.UseShellExecute = false;
-            psi.CreateNoWindow = true;
-            using (var p = Process.Start(psi)) p.WaitForExit(30000);
         }
 
         // Same never-overwrite rule as CarryOverFile: existing files at the
