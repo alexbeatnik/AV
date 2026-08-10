@@ -362,6 +362,10 @@ namespace AVUI
                         if (TryParseTicks(t.Substring(14), out dt)) lastYaraRulesCheck = dt;
                     }
                     else if (t == "yaraexcluded=1") yaraExclusionAsked = true;
+                    // deliberately not implied by yaraexcluded=1: the wider
+                    // install-folder exclusion is a separate question (see
+                    // OfferDefenderExclusion), so pre-0.1.9 installs get asked once
+                    else if (t == "appexcluded=1") appExclusionAsked = true;
                     else if (t == "autostartinit=1") autostartInitialized = true;
                     else if (t == "modeasked=1") { modeAsked = true; modeAskedSeen = true; }
                     else if (t == "modeasked=0") modeAskedSeen = true;
@@ -523,6 +527,7 @@ namespace AVUI
             sb.AppendLine("vtupload=" + (vtUploadEnabled ? "1" : "0"));
             sb.AppendLine("lastyararules=" + lastYaraRulesCheck.Ticks);
             sb.AppendLine("yaraexcluded=" + (yaraExclusionAsked ? "1" : "0"));
+            sb.AppendLine("appexcluded=" + (appExclusionAsked ? "1" : "0"));
             sb.AppendLine("sched=" + (schedMode == 0 ? "off" : schedMode == 1 ? "daily" : "weekly"));
             sb.AppendLine("lastsched=" + lastScheduledScan.Ticks);
             sb.AppendLine("autostartinit=" + (autostartInitialized ? "1" : "0"));

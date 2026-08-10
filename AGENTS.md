@@ -51,7 +51,7 @@ One `MainForm` class split into partial files by concern:
 | `src/MainForm.Quarantine.cs` | neutralized `.quar` storage, index, threat dialog |
 | `src/MainForm.Monitor.cs` | FileSystemWatcher monitoring, exclusions |
 | `src/MainForm.Pause.cs` | tray "Pause protection" (1/2/5 h / until restart): stops monitoring, scheduled and USB checks; auto-resume timer; not persisted — any restart restores protection |
-| `src/MainForm.Install.cs` | per-user install/uninstall, ACL fixes, the Defender rules-folder exclusion (`--defender-exclude`) |
+| `src/MainForm.Install.cs` | per-user install/uninstall, ACL fixes, the Defender exclusion for the app's own folder (`--defender-exclude`) |
 | `src/MainForm.Usb.cs` | USB volume-arrival prompt |
 | `src/MainForm.Yara.cs` | YARA engine: yara64/Forge-rules download, weekly rules refresh (which also upgrades yara64 itself when a newer release ships — `YaraVersionIsNewer`), the post-ClamAV scan phase (`OnScanExit` → `RunYaraPhase` → `FinishScan`); phase progress % from the process's IO read counters vs the list's total size (`YaraProgressTick`, `GetProcessIoCounters` P/Invoke) — yara64 prints nothing per file |
 | `src/MainForm.VirusTotal.cs` | VT API v3: throttled SHA256 lookups, opt-in uploads, trust tiers (`VtClassify`/`ResolvePendingYara` — YARA-only matches are held untouched until the VT verdict decides quarantine / release / user decision). Each pending entry carries its own scan's description; verdicts landing during an unrelated scan are parked in `vtLateThreats` and surfaced after it (`FlushVtLateThreats`). A scan with held-back files stays visually in phase 3 (`vtPhaseRunning`: busy hero, progress = verdicts received) until the batch drains — the last verdict closes the scan and fires the single completion toast (`VtNotifyPendingDone`); a monitor batch that briefly takes the scan state over hands the held phase back afterwards (`vtPhaseInterrupted`) |
@@ -132,13 +132,40 @@ Follow the matching rule whenever a change touches one of these areas:
   unpacks per scan into `yara\rules-run\<guid>` and `CleanYaraRunDir` removes
   it when the phase ends (`MigrateLegacyForgeRules` upgrades pre-0.1.7
   installs). That per-scan copy is unavoidable — yara64 needs a real file — so
-  the `yara` folder needs a Defender exclusion (`--defender-exclude`), offered
-  once proactively; the engine genuinely cannot run without it under RTP.
-  Never let plain rules touch the disk outside that folder. (2) Releases are
-  unsigned, so Defender's cloud ML has flagged the built exe as
-  `Trojan:Win32/Bearfoos.B!ml`; the fix is a false-positive report to
-  Microsoft, and `src/AssemblyInfo.cs` keeps its company/description/copyright
-  fields populated because sparse version info feeds that verdict.
+  a Defender exclusion (`--defender-exclude`) is required; the engine genuinely
+  cannot run without it under RTP. Never let plain rules touch the disk outside
+  the excluded folder. (2) Releases are unsigned and have no download
+  reputation, which is by itself enough for Defender's cloud: the built exe has
+  been flagged `Trojan:Win32/Bearfoos.B!ml` and then
+  `Trojan:Win32/Sonbokli.A!cl`. Verified 08.08.2026 — the release binary is
+  quarantined seconds after download anywhere on disk while the same source
+  built locally scans clean, so the verdict rides on hash and reputation, not
+  content. Remediation takes `AV.exe`, both shortcuts, the `Run` value and the
+  `Uninstall` key together, i.e. it uninstalls the app. Only a false-positive
+  report to Microsoft removes a verdict, and it must be redone per release
+  (new hash). `src/AssemblyInfo.cs` keeps its company/description/copyright
+  fields populated because sparse version info feeds these verdicts. Because
+  self-update pulls the release build, a restored install is re-flagged unless
+  the exclusion is in place.
+- **`defender-exclusion`** — `DefenderExclusionDirFor` decides the scope and the
+  distinction is load-bearing: an **install** excludes `InstallDir` (one
+  exclusion covers both the rules and the exe; the quarantine inside it is
+  already XOR-neutralized), a **portable** run excludes only `YaraDir` —
+  never the folder the user dropped the exe into. Two separate settings keys
+  (`yaraexcluded`, `appexcluded`) track the two answers, so an install that
+  agreed to the narrow 0.1.7/0.1.8 exclusion is still asked once about the
+  wider one. The offer is made from `Shown` for installs and from the YARA
+  setup path (which never runs with `yara=0`). The exclusion is written by
+  calling Defender's `MSFT_MpPreference::Add` WMI method directly — the same
+  call `Add-MpPreference` is a CDXML wrapper for. **Do not go back to spawning
+  `powershell -Command Add-MpPreference` in a hidden window**, and do not add
+  hidden `icacls`/script-host children elsewhere either (`FixWinTempAcl` uses
+  the .NET ACL API for the same reason): a hidden script host adding an AV
+  exclusion is textbook self-defence-disabling malware behaviour, and this
+  project cannot afford to feed the heuristics that are already flagging it.
+  The elevated `--defender-exclude` instance reports failure through its exit
+  code — Tamper Protection and device policy both refuse exclusions, and the
+  UI must not claim success it did not get.
 - **`release`** — the version lives in `src/AssemblyInfo.cs`; merging a bump
   to `main` publishes the GitHub Release the app self-updates from. Releases
   are deliberately unsigned (the maintainer declined the code-signing route);

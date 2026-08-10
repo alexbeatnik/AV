@@ -23,6 +23,7 @@ $cscArgs = @(
     '/r:System.Windows.Forms.dll'
     '/r:System.IO.Compression.dll'
     '/r:System.IO.Compression.FileSystem.dll'
+    '/r:System.Management.dll'
 ) + $sources
 
 & $csc @cscArgs

@@ -29,6 +29,9 @@ $cscArgs = @(
     '/r:System.Windows.Forms.dll'
     '/r:System.IO.Compression.dll'
     '/r:System.IO.Compression.FileSystem.dll'
+    # Defender's own WMI provider (MSFT_MpPreference), used to add the app's
+    # folder exclusion without spawning a hidden powershell -Command
+    '/r:System.Management.dll'
 ) + $sources
 
 & $csc @cscArgs

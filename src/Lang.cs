@@ -221,6 +221,35 @@ namespace AVUI
             A("status.defenderExcludeCancelled", "Defender exclusion cancelled — the YARA engine stays off.", "Виключення для Defender скасовано — рушій YARA лишається вимкненим.");
             A("status.defenderExcludeDone", "Folder excluded — the YARA engine can read its rules.", "Теку виключено — рушій YARA може читати свої правила.");
 
+            A("msg.defenderExcludeAppConfirm", "Windows Defender needs to leave this app's own folder alone:\r\n{0}\r\n\r\n"
+                + "Two of the files in it read as malware to Defender, neither for anything they actually do. "
+                + "The YARA rule set is made of literal malware strings — which is what a rule has to contain in "
+                + "order to recognise malware — so Defender deletes it and the YARA engine has nothing to compile. "
+                + "And this app's own exe is unsigned and has no download reputation, which is enough on its own for "
+                + "Defender's cloud to flag it: when that happens it quarantines AV.exe together with its shortcuts "
+                + "and its autostart entry, which uninstalls the app without asking you.\r\n\r\n"
+                + "Only this folder is excluded — it holds the app's own files and nothing you open documents from; "
+                + "quarantined files inside it are already stored neutralized. Setting it requires a one-time "
+                + "administrator prompt. Declining leaves the YARA engine off and the app exposed to being deleted; "
+                + "ClamAV and VirusTotal keep working. Continue?",
+                "Windows Defender має не чіпати власну теку цієї програми:\r\n{0}\r\n\r\n"
+                + "Два файли в ній Defender сприймає як малваре — жоден не через те, що він насправді робить. "
+                + "Набір правил YARA складається з рядків малваре — саме те, що правило й мусить містити, аби ту "
+                + "малваре розпізнавати, — тож Defender його видаляє, і рушієві YARA нічого компілювати. А власний "
+                + "exe програми не підписаний і не має репутації завантажень, і цього самого по собі досить, щоб "
+                + "хмара Defender його позначила: тоді він забирає AV.exe разом з ярликами та записом автозапуску, "
+                + "тобто видаляє програму, не спитавши вас.\r\n\r\n"
+                + "Виключається лише ця тека: у ній власні файли програми й нічого, що ви відкриваєте; файли в "
+                + "карантині всередині вже зберігаються нейтралізованими. Потрібен одноразовий запит адміністратора. "
+                + "Якщо відмовитись — рушій YARA не працюватиме, а програма лишиться під загрозою видалення; ClamAV "
+                + "і VirusTotal працюють у будь-якому разі. Продовжити?");
+            A("status.defenderExcludeAppCancelled", "Defender exclusion cancelled — the YARA engine stays off and Defender may delete the app.",
+                "Виключення для Defender скасовано — рушій YARA лишається вимкненим, і Defender може видалити програму.");
+            A("status.defenderExcludeAppDone", "Folder excluded — the app and its rules are safe from Defender.",
+                "Теку виключено — програма та її правила захищені від Defender.");
+            A("status.defenderExcludeFailed", "Defender refused the exclusion (Tamper Protection or a device policy?).",
+                "Defender відхилив виключення (можливо, Tamper Protection або політика пристрою).");
+
             // Threat dialog
             A("threat.title", "Threats found — what to do?", "Знайдено загрози — що робити?");
             A("col.file", "File", "Файл");
