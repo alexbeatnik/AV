@@ -17,6 +17,29 @@ namespace AVUI
 {
     public partial class MainForm : Form
     {
+        // Every network worker calls this before its first request. It used to be
+        // copy-pasted into each one, and the daily database version check was the
+        // one that got missed. Two failure modes it now covers centrally:
+        // a Schannel default that still excludes TLS 1.2 (GitHub and the ClamAV
+        // CDN both refuse anything older), and a framework build that doesn't
+        // know the TLS 1.3 flag — whose setter rejects the whole value, which on
+        // the UI-thread call site (StartClamAVDownload) was an unhandled throw.
+        internal static void EnableModernTls()
+        {
+            const System.Net.SecurityProtocolType Tls13 = (System.Net.SecurityProtocolType)12288;
+            try
+            {
+                System.Net.ServicePointManager.SecurityProtocol |=
+                    System.Net.SecurityProtocolType.Tls12 | Tls13;
+            }
+            catch
+            {
+                // TLS 1.3 not a known flag here — 1.2 alone is on every supported Windows
+                try { System.Net.ServicePointManager.SecurityProtocol |= System.Net.SecurityProtocolType.Tls12; }
+                catch { }
+            }
+        }
+
         // ---------- Self-update: check GitHub Releases for a newer AV.exe ----------
 
         const string UpdateApiUrl = "https://api.github.com/repos/alexbeatnik/AV/releases/latest";
@@ -33,6 +56,30 @@ namespace AVUI
         internal static bool AppUpdateDue(bool startupChecked, DateTime last, DateTime now, int periodHours)
         {
             return !startupChecked || (now - last).TotalHours >= periodHours;
+        }
+
+        // Pure release comparison (unit-tested): is the release tag strictly newer
+        // than what's running? The tag regex accepts "[\d.]+", which Version's
+        // constructor rejects for a single component ("1") or a trailing dot
+        // ("1.2.3.") — that used to throw out of the middle of the worker into its
+        // blanket catch, so a malformed tag on the latest release took the whole
+        // check down by exception instead of just answering "no update".
+        internal static bool IsNewerRelease(string tag, string current)
+        {
+            Version remote = ReleaseVersion(tag), local = ReleaseVersion(current);
+            return remote != null && local != null && remote > local;
+        }
+
+        // major.minor.build, with an unspecified component read as 0. Version
+        // stores an absent component as -1, so a "v0.2.0.0" tag would compare as
+        // newer than the running 0.2.0 (AppVersion is ToString(3)) and re-download
+        // the very same build on every single launch. Releases are three-part, so
+        // a fourth component is normalized away rather than compared.
+        static Version ReleaseVersion(string s)
+        {
+            Version v;
+            if (string.IsNullOrEmpty(s) || !Version.TryParse(s, out v)) return null;
+            return new Version(v.Major, v.Minor, v.Build < 0 ? 0 : v.Build);
         }
 
         void MaybeCheckAppUpdate()
@@ -53,8 +100,7 @@ namespace AVUI
             bool success = false;
             try
             {
-                const System.Net.SecurityProtocolType Tls13 = (System.Net.SecurityProtocolType)12288;
-                System.Net.ServicePointManager.SecurityProtocol |= System.Net.SecurityProtocolType.Tls12 | Tls13;
+                EnableModernTls();
                 string json;
                 using (var api = new System.Net.WebClient())
                 {
@@ -66,7 +112,7 @@ namespace AVUI
                 if (vm.Success && um.Success)
                 {
                     success = true;
-                    if (new Version(vm.Groups[1].Value) > new Version(AppVersion))
+                    if (IsNewerRelease(vm.Groups[1].Value, AppVersion))
                     {
                         version = vm.Groups[1].Value;
                         // %TEMP% is always writable, wherever the app itself lives
@@ -201,8 +247,7 @@ namespace AVUI
 
             SetBusy(true, Lang.T("status.findingLatestClamAV"));
             SetHero(ShieldState.Busy, Lang.T("hero.installingClamAV"), Lang.T("hero.findingLatestRelease"));
-            const System.Net.SecurityProtocolType Tls13 = (System.Net.SecurityProtocolType)12288;
-            System.Net.ServicePointManager.SecurityProtocol |= System.Net.SecurityProtocolType.Tls12 | Tls13;
+            EnableModernTls();
 
             System.Threading.ThreadPool.QueueUserWorkItem(delegate
             {
@@ -378,8 +423,7 @@ namespace AVUI
 
         void DbUpdateWorker()
         {
-            const System.Net.SecurityProtocolType Tls13 = (System.Net.SecurityProtocolType)12288;
-            System.Net.ServicePointManager.SecurityProtocol |= System.Net.SecurityProtocolType.Tls12 | Tls13;
+            EnableModernTls();
             string err = null;
             int updated = 0;
             try

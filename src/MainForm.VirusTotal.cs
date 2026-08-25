@@ -112,8 +112,7 @@ namespace AVUI
 
         void VtLookupWorker(string path, string hash, string key)
         {
-            const System.Net.SecurityProtocolType Tls13 = (System.Net.SecurityProtocolType)12288;
-            System.Net.ServicePointManager.SecurityProtocol |= System.Net.SecurityProtocolType.Tls12 | Tls13;
+            EnableModernTls();
             int status = 0, mal = 0, susp = 0, total = 0;
             string err = null;
             try
@@ -409,8 +408,7 @@ namespace AVUI
             string err = null;
             try
             {
-                const System.Net.SecurityProtocolType Tls13 = (System.Net.SecurityProtocolType)12288;
-                System.Net.ServicePointManager.SecurityProtocol |= System.Net.SecurityProtocolType.Tls12 | Tls13;
+                EnableModernTls();
                 byte[] fileBytes = File.ReadAllBytes(path);
                 string boundary = "----AVBoundary" + Guid.NewGuid().ToString("N");
                 var req = (System.Net.HttpWebRequest)System.Net.WebRequest.Create(
@@ -477,8 +475,7 @@ namespace AVUI
                 string err = null;
                 try
                 {
-                    const System.Net.SecurityProtocolType Tls13 = (System.Net.SecurityProtocolType)12288;
-                    System.Net.ServicePointManager.SecurityProtocol |= System.Net.SecurityProtocolType.Tls12 | Tls13;
+                    EnableModernTls();
                     var req = (System.Net.HttpWebRequest)System.Net.WebRequest.Create(
                         "https://www.virustotal.com/api/v3/files/" + VtEicarSha256);
                     req.Headers["x-apikey"] = key;

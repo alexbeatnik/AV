@@ -120,6 +120,15 @@ namespace AVUI.Tests
             Assert.Equal(@"C:\Program Files\bad app\a b.dll", path, "path with spaces");
         }
 
+        public static void TestUncPathIsParsed()
+        {
+            // a dropped/picked network folder lists its files as \\server\share\…
+            string rule, path;
+            Assert.True(MainForm.ParseYaraMatch(@"MAL_Test \\srv\share\sub\evil.exe", out rule, out path), "parsed");
+            Assert.Equal("MAL_Test", rule, "rule");
+            Assert.Equal(@"\\srv\share\sub\evil.exe", path, "UNC path");
+        }
+
         public static void TestErrorLineIsRejected()
         {
             string rule, path;

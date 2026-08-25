@@ -41,7 +41,7 @@ namespace AVUI
             BuildUi();
             LocateClamAV();
             LoadSettings();
-            SyncUninstallVersion(); // a self-updated exe must show its real version in Settings → Apps
+            SyncUninstallEntry(); // a self-updated exe must show its real version and publisher in Settings → Apps
             RefreshDbStatus();
             ShowPage(0);
             EnsureAutostartFirstRun();
@@ -664,7 +664,7 @@ namespace AVUI
             btnQuarRestore.Click += delegate { RestoreSelectedQuarantine(false); };
             btnQuarToExcl.Click += delegate { RestoreSelectedQuarantine(true); };
             btnQuarDelete.Click += delegate { DeleteSelectedQuarantine(); };
-            btnQuarOpenFolder.Click += delegate { Process.Start("explorer.exe", "\"" + quarDir + "\""); };
+            btnQuarOpenFolder.Click += delegate { OpenInExplorer(quarDir); };
 
             buttons.Controls.AddRange(new Control[] { btnQuarRestore, btnQuarToExcl, btnQuarDelete, btnQuarOpenFolder });
 
@@ -783,8 +783,17 @@ namespace AVUI
             var row = (QuarRow)quarList.SelectedItems[0].Tag;
             string dir = null;
             try { if (row.Origin.Length > 0) dir = Path.GetDirectoryName(row.Origin); } catch { }
-            if (dir != null && Directory.Exists(dir)) Process.Start("explorer.exe", "\"" + dir + "\"");
+            if (dir != null && Directory.Exists(dir)) OpenInExplorer(dir);
             else statusLabel.Text = Lang.T("quarantine.unknownOrigin");
+        }
+
+        // explorer.exe can be missing or blocked by policy — Process.Start then
+        // throws Win32Exception, and an unhandled throw out of a Click handler
+        // takes down the app (same reason OpenScanLog guards notepad.exe).
+        void OpenInExplorer(string dir)
+        {
+            try { Process.Start("explorer.exe", "\"" + dir + "\""); }
+            catch (Exception ex) { statusLabel.Text = string.Format(Lang.T("log.openFailed"), ex.Message); }
         }
 
         // Properties dialog: origin, threat, source, date, size, SHA256 (+ copy)
@@ -1785,9 +1794,18 @@ namespace AVUI
             }
             StopWatchers();
             StopCurrent();
+            // Set before the kill: a clamd starter thread still between
+            // Process.Start and its clamdProc assignment reads this and collects
+            // its own daemon, which the kill below would otherwise miss entirely.
+            appClosing = true;
             KillClamdNow(); // synchronous: the async StopClamd worker wouldn't survive process exit
             CleanupMemDumps();   // remove any RAM dumps from an in-flight scan
             CleanupBatchLists(); // and its --file-list temp files
+            // Exiting mid-YARA-phase would otherwise leave that phase's unpacked
+            // plain rules on disk until the next start's SweepYaraRunDir — the
+            // one thing a resident AV reliably eats (see MainForm.Yara.cs).
+            CleanYaraRunDir(scan.YaraRunDir);
+            scan.YaraRunDir = null;
             tray.Visible = false;
         }
 

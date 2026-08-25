@@ -22,6 +22,29 @@ namespace AVUI
     {
         // ---------- Install (per-user, no admin rights) ----------
 
+        // Shown as the publisher in Settings → Apps. Read out of AssemblyCompany
+        // (src/AssemblyInfo.cs) rather than spelled out again here: the install
+        // and the startup sync below wrote it separately and drifted — the Apps
+        // list read "AV" while the exe's version resource said the real name.
+        // One source, so the two can't disagree again.
+        static readonly string PublisherName = AssemblyCompanyName();
+
+        static string AssemblyCompanyName()
+        {
+            try
+            {
+                object[] a = Assembly.GetExecutingAssembly()
+                    .GetCustomAttributes(typeof(AssemblyCompanyAttribute), false);
+                if (a.Length > 0)
+                {
+                    string c = ((AssemblyCompanyAttribute)a[0]).Company;
+                    if (!string.IsNullOrEmpty(c)) return c;
+                }
+            }
+            catch { }
+            return AppName; // no readable version resource — never write a null
+        }
+
         // %LocalAppData%\Programs\AV — writable by the owning user only.
         // Binaries can't be tampered with by other local users, and installing
         // and self-updating need no admin rights or UAC prompts. The app never
@@ -138,7 +161,7 @@ namespace AVUI
             {
                 k.SetValue("DisplayName", "AV");
                 k.SetValue("DisplayVersion", AppVersion);
-                k.SetValue("Publisher", "AV");
+                k.SetValue("Publisher", PublisherName);
                 k.SetValue("DisplayIcon", dstExe);
                 k.SetValue("InstallLocation", dst);
                 k.SetValue("UninstallString", "\"" + dstExe + "\" --uninstall");
@@ -155,8 +178,10 @@ namespace AVUI
 
         // Self-updates swap the exe but the Apps-list entry kept the version from
         // install time — refresh it on startup so Settings → Apps shows what's
-        // actually running.
-        static void SyncUninstallVersion()
+        // actually running. The publisher goes through here too: an install made
+        // before it was corrected still says "AV", and only a rewrite from a
+        // running copy can fix that without a reinstall.
+        static void SyncUninstallEntry()
         {
             if (!IsInstalled) return;
             try
@@ -167,6 +192,8 @@ namespace AVUI
                     if (k == null) return; // installed manually without the registry entry
                     if (!string.Equals(k.GetValue("DisplayVersion") as string, AppVersion))
                         k.SetValue("DisplayVersion", AppVersion);
+                    if (!string.Equals(k.GetValue("Publisher") as string, PublisherName))
+                        k.SetValue("Publisher", PublisherName);
                 }
             }
             catch { }
@@ -315,18 +342,35 @@ namespace AVUI
             return (installed ? installDir : yaraDir).TrimEnd('\\');
         }
 
-        static string DefenderExclusionDir
+        // The install-scope folder is taken from where THIS exe actually sits,
+        // not from InstallDir: the two are the same folder for an installed copy,
+        // but InstallDir resolves %LocalAppData% for whoever is running — and the
+        // elevated --defender-exclude instance can be a DIFFERENT account (a
+        // standard user typing an admin's credentials at the UAC prompt). See the
+        // argument constants below for why the wide/narrow choice travels too.
+        static string DefenderExclusionDirFor(bool wide)
         {
-            get { return DefenderExclusionDirFor(IsInstalled, InstallDir, YaraDir); }
+            return DefenderExclusionDirFor(wide, AppDomain.CurrentDomain.BaseDirectory, YaraDir);
         }
 
-        static void RunDefenderExcludeMode()
+        // The scope is decided by the non-elevated instance and carried on the
+        // command line. Recomputing IsInstalled inside the elevated copy asked
+        // "does this exe live under the CURRENT user's %LocalAppData%?", which is
+        // false whenever the UAC prompt was answered with another account — so an
+        // install silently got the narrow yara-only exclusion while the UI said it
+        // had excluded the whole app folder, and AV.exe stayed exposed. Only these
+        // two fixed tokens travel; no directory is ever taken from the argument.
+        const string DefenderExcludeAppArg = "--defender-exclude-app";
+        const string DefenderExcludeYaraArg = "--defender-exclude-yara";
+
+        static void RunDefenderExcludeMode(bool wide)
         {
             if (!IsAdmin())
             {
                 try
                 {
-                    var psi = new ProcessStartInfo(Application.ExecutablePath, "--defender-exclude");
+                    var psi = new ProcessStartInfo(Application.ExecutablePath,
+                        wide ? DefenderExcludeAppArg : DefenderExcludeYaraArg);
                     psi.UseShellExecute = true;
                     psi.Verb = "runas";
                     Process.Start(psi);
@@ -337,7 +381,7 @@ namespace AVUI
             // the caller waits on this process and reads its exit code — Tamper
             // Protection and managed-endpoint policy both refuse exclusion changes,
             // and reporting success there would be a lie
-            try { AddDefenderExclusion(DefenderExclusionDir); }
+            try { AddDefenderExclusion(DefenderExclusionDirFor(wide)); }
             catch { Environment.ExitCode = 1; }
         }
 
@@ -355,8 +399,28 @@ namespace AVUI
             using (ManagementBaseObject args = cls.GetMethodParameters("Add"))
             {
                 args["ExclusionPath"] = new string[] { dir };
-                using (cls.InvokeMethod("Add", args, null)) { }
+                using (ManagementBaseObject result = cls.InvokeMethod("Add", args, null))
+                    ThrowIfWmiFailed(result);
             }
+        }
+
+        // MSFT_MpPreference::Add is declared `uint32 Add(...)`, so a refusal
+        // (Tamper Protection, managed-endpoint policy) can come back as a
+        // non-zero ReturnValue instead of an exception. Ignoring it made
+        // --defender-exclude exit 0 and the UI report an exclusion that was
+        // never written. Anything but 0 is a failure; a build that returns no
+        // ReturnValue at all keeps the old "no throw = success" reading.
+        static void ThrowIfWmiFailed(ManagementBaseObject result)
+        {
+            object rv = null;
+            try { if (result != null) rv = result["ReturnValue"]; }
+            catch { return; } // no such out-parameter — nothing to judge it by
+            if (rv == null) return;
+            long code;
+            try { code = Convert.ToInt64(rv); }
+            catch { return; }
+            if (code != 0)
+                throw new Exception("MSFT_MpPreference::Add returned 0x" + code.ToString("x8"));
         }
 
         bool defenderExclusionOffered;   // already asked in this run
@@ -392,7 +456,7 @@ namespace AVUI
             SaveSettings(); // asked once, whatever the answer turns out to be
             if (MessageBox.Show(this,
                 string.Format(Lang.T(wide ? "msg.defenderExcludeAppConfirm" : "msg.defenderExcludeConfirm"),
-                    DefenderExclusionDir),
+                    DefenderExclusionDirFor(wide)),
                 AppName, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
             {
                 statusLabel.Text = Lang.T(wide ? "status.defenderExcludeAppCancelled" : "status.defenderExcludeCancelled");
@@ -401,7 +465,9 @@ namespace AVUI
             int code;
             try
             {
-                var psi = new ProcessStartInfo(Application.ExecutablePath, "--defender-exclude");
+                // the scope goes with it: the elevated copy must not re-derive it
+                var psi = new ProcessStartInfo(Application.ExecutablePath,
+                    wide ? DefenderExcludeAppArg : DefenderExcludeYaraArg);
                 psi.UseShellExecute = true;
                 psi.Verb = "runas";
                 using (var p = Process.Start(psi)) { p.WaitForExit(); code = p.ExitCode; }

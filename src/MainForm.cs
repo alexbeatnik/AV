@@ -189,7 +189,10 @@ namespace AVUI
                 if (a == "--install") { RunInstallMode(); return; }
                 if (a == "--uninstall") { RunUninstallMode(); return; }
                 if (a == "--fix-wintemp") { RunFixWinTempMode(); return; }
-                if (a == "--defender-exclude") { RunDefenderExcludeMode(); return; }
+                // the scope is passed in, never re-derived here — see the note on
+                // DefenderExcludeAppArg in MainForm.Install.cs
+                if (a == DefenderExcludeAppArg) { RunDefenderExcludeMode(true); return; }
+                if (a == DefenderExcludeYaraArg) { RunDefenderExcludeMode(false); return; }
             }
 
             // Single instance only: if already running, ask that instance to show itself and exit

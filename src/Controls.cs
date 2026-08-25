@@ -183,6 +183,16 @@ namespace AVUI
         protected override void OnFontChanged(EventArgs e) { base.OnFontChanged(e); FitWidth(); }
         protected override void OnParentChanged(EventArgs e) { base.OnParentChanged(e); FitWidth(); }
 
+        // The animation timer is a plain field, not a child control, so disposing
+        // the toggle does not reach it: a dialog closed while the knob is still
+        // sliding (the engines dialog builds three of these per open) would leave
+        // a 15 ms timer ticking for the rest of the process' life.
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) { anim.Stop(); anim.Dispose(); }
+            base.Dispose(disposing);
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;

@@ -52,7 +52,7 @@ namespace AVUI
         public string YaraListPath;      // this scan's file list, reused by the YARA pass
         public string YaraRunDir;        // working folder holding the unpacked rules; deleted when the phase ends
         public bool YaraPhasePending;    // YARA should follow the ClamAV part
-        public bool YaraPhaseExpected;   // YaraReady() snapshot at scan start — drives only the phase label
+        public bool YaraPhaseExpected;   // YaraReady() snapshot at scan start — drives the phase-1 label only (by phase 2 the pass is a fact, not a prediction)
         public int YaraClamCode;         // ClamAV exit code, held while the YARA phase runs
         public DateTime YaraPhaseStart;  // MinValue = the phase didn't run
         public volatile bool YaraRunning;
