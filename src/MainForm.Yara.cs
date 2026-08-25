@@ -27,9 +27,13 @@ namespace AVUI
         volatile bool yaraRulesTaken;     // a resident AV deleted the rules mid-install (see OfferDefenderExclusion)
         // The per-scan YARA phase state (list path, pending/expected flags, match
         // map, progress counters) lives in ScanSession — note in particular that
-        // YaraPhaseExpected only drives the "Phase 1 of N" label; the phase itself
+        // YaraPhaseExpected only drives the "Phase 1 of N" label, because during
+        // the ClamAV phase a second pass is still a prediction. The phase itself
         // is re-decided live in OnScanExit, so an engine that finishes downloading
-        // mid-scan still gets its pass (just without the label).
+        // mid-scan still gets its pass. It is then a fact rather than a
+        // prediction, so phase 2 labels itself unconditionally: that scan shows
+        // no label over phase 1 and "Phase 2 of N" over phase 2, which is the
+        // honest reading of what was known when.
         Timer yaraProgressTimer;          // polls yara64's IO counters for the progress bar
 
         // yara64 prints nothing per file, so unlike the ClamAV phase there is no
@@ -192,8 +196,7 @@ namespace AVUI
                 string err = null;
                 try
                 {
-                    const System.Net.SecurityProtocolType Tls13 = (System.Net.SecurityProtocolType)12288;
-                    System.Net.ServicePointManager.SecurityProtocol |= System.Net.SecurityProtocolType.Tls12 | Tls13;
+                    EnableModernTls();
                     Directory.CreateDirectory(YaraRulesDir);
                     Directory.CreateDirectory(YaraCustomDir);
                     if (needExe) DownloadYaraEngine(null);
@@ -484,29 +487,39 @@ namespace AVUI
             string scanList = scan.YaraListPath;
             int unsupported = 0;
             List<string> safePaths = null; // kept for the progress total below
+            // Set inside the try, acted on after it: closing the scan from in
+            // there would put FinishScan (a long call that ends in the modal
+            // threat dialog) under a catch that swallows everything, and a
+            // throw from it would fall out of the try and run the rest of this
+            // method — spawning yara64 for a scan that is already finished.
+            bool nothingScannable = false;
             try
             {
                 var unicodeWithoutBom = new UnicodeEncoding(false, false);
                 var raw = File.ReadAllLines(scan.YaraListPath);
                 var safe = AnsiSafePaths(new List<string>(raw), Encoding.Default, out unsupported);
-                if (safe.Count == 0)
+                if (safe.Count == 0) nothingScannable = true;
+                else
                 {
-                    // nothing yara can even open — don't spawn it just to fail
-                    AppendLog(string.Format(Lang.T("log.yaraPathsSkipped"), unsupported), Theme.Warn, "WARN", true);
-                    FinishScan(clamCode);
-                    return;
+                    // kept before the list-file write: if that throws, the scan falls
+                    // back to the shared UTF-8 list but the progress total still works
+                    safePaths = safe;
+                    string unicodeList = Path.Combine(Path.GetTempPath(), "av-yara-" + Guid.NewGuid().ToString("N") + ".txt");
+                    File.WriteAllLines(unicodeList, safe.ToArray(), unicodeWithoutBom);
+                    batchListPaths.Add(unicodeList); // cleaned with the other scan lists
+                    scanList = unicodeList;
+                    if (unsupported > 0)
+                        AppendLog(string.Format(Lang.T("log.yaraPathsSkipped"), unsupported), Theme.Warn, "WARN", true);
                 }
-                // kept before the list-file write: if that throws, the scan falls
-                // back to the shared UTF-8 list but the progress total still works
-                safePaths = safe;
-                string unicodeList = Path.Combine(Path.GetTempPath(), "av-yara-" + Guid.NewGuid().ToString("N") + ".txt");
-                File.WriteAllLines(unicodeList, safe.ToArray(), unicodeWithoutBom);
-                batchListPaths.Add(unicodeList); // cleaned with the other scan lists
-                scanList = unicodeList;
-                if (unsupported > 0)
-                    AppendLog(string.Format(Lang.T("log.yaraPathsSkipped"), unsupported), Theme.Warn, "WARN", true);
             }
             catch { } // fall back to the shared UTF-8 list — worst case is the old behavior
+            if (nothingScannable)
+            {
+                // nothing yara can even open — don't spawn it just to fail
+                AppendLog(string.Format(Lang.T("log.yaraPathsSkipped"), unsupported), Theme.Warn, "WARN", true);
+                FinishScan(clamCode);
+                return;
+            }
 
             // Total workload for the progress estimate, summed off the UI thread
             // (metadata-only reads; the OS cache is still warm from the ClamAV
@@ -673,7 +686,13 @@ namespace AVUI
             string r = line.Substring(0, sp);
             string p = line.Substring(sp + 1);
             if (r.IndexOf('\\') >= 0 || r.IndexOf('/') >= 0) return false; // not a rule identifier
-            if (p.Length < 3 || p[1] != ':' || p[2] != '\\') return false; // not an absolute Windows path
+            if (p.Length < 3) return false;
+            // Absolute Windows path — drive-letter or UNC. A dropped/picked
+            // network folder lists its files as \\server\share\…, and rejecting
+            // that shape counted real matches in it as unparsable output.
+            bool drive = p[1] == ':' && p[2] == '\\';
+            bool unc = p[0] == '\\' && p[1] == '\\' && p[2] != '\\';
+            if (!drive && !unc) return false;
             rule = r;
             path = p;
             return true;

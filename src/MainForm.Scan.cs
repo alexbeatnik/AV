@@ -242,6 +242,7 @@ namespace AVUI
             checkingDb = true;
             System.Threading.ThreadPool.QueueUserWorkItem(delegate
             {
+                EnableModernTls(); // the CDN refuses pre-1.2 handshakes, same as every other worker
                 bool newer = false, reachedServer = false;
                 foreach (string url in DbUrls)
                 {
@@ -675,8 +676,9 @@ namespace AVUI
 
         const int ClamdPort = 3310;
         const string CancelledMarker = "__CANCELLED__"; // language-independent internal sentinel
-        Process clamdProc;                 // the daemon we started
+        Process clamdProc;                 // the daemon we started (claimed with Interlocked — see KillClamdNow)
         volatile bool clamdStopping;       // the daemon is still shutting down (releasing the port)
+        volatile bool appClosing;          // the form is going away; the clamd starter must clean up after itself
         volatile bool startingEngine;      // clamd is loading the database, the scan hasn't started yet
         readonly List<Process> scanProcs = new List<Process>(); // parallel clamdscan processes
 
@@ -762,9 +764,17 @@ namespace AVUI
                         p.BeginOutputReadLine();
                         p.BeginErrorReadLine();
                         clamdProc = p;
+                        // The app can close between Process.Start and this
+                        // assignment: OnFormClosing's KillClamdNow then read a
+                        // still-null field, killed nothing, and this daemon
+                        // (hundreds of MB of RAM) outlived the app. appClosing is
+                        // set before that kill, so seeing it here means we own the
+                        // cleanup — and if both run, KillClamdNow claims the field
+                        // atomically so only one of them kills and disposes.
+                        if (appClosing) { KillClamdNow(); err = CancelledMarker; }
                         DateTime deadline = DateTime.Now.AddSeconds(180);
                         bool ready = false;
-                        while (DateTime.Now < deadline)
+                        while (err == null && DateTime.Now < deadline)
                         {
                             if (ses.Cancel) { err = CancelledMarker; break; }
                             if (p.HasExited)
@@ -799,8 +809,10 @@ namespace AVUI
         // background, so the UI isn't blocked. A foreign clamd on the same port is left alone.
         void StopClamd()
         {
-            var p = clamdProc;
-            clamdProc = null;
+            // Interlocked, not a plain read-then-null: KillClamdNow can be running
+            // this same claim from the closing UI thread while the clamd starter
+            // thread is here, and two winners would double-kill and double-dispose.
+            Process p = System.Threading.Interlocked.Exchange(ref clamdProc, null);
             if (p == null) return;
             clamdStopping = true;
             System.Threading.ThreadPool.QueueUserWorkItem(delegate
@@ -824,8 +836,7 @@ namespace AVUI
         // of RAM) running forever. Kill is fine here — clamd holds no state to flush.
         void KillClamdNow()
         {
-            var p = clamdProc;
-            clamdProc = null;
+            Process p = System.Threading.Interlocked.Exchange(ref clamdProc, null);
             if (p == null) return;
             try { if (!p.HasExited) p.Kill(); } catch { }
             try { p.Dispose(); } catch { }
