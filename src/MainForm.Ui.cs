@@ -251,7 +251,7 @@ namespace AVUI
                 if (WindowState == FormWindowState.Minimized)
                 {
                     ShowInTaskbar = false;
-                    Hide();
+                    HideToTray();
                 }
             };
             FormClosing += OnFormClosing;
@@ -1750,6 +1750,19 @@ namespace AVUI
             tray.ShowBalloonTip(ms, AppName, text, icon);
         }
 
+        // Parks the window in the tray (close button or minimize), always leaving
+        // it on the dashboard so the next open shows status rather than whatever
+        // page was last visited. The programmatic RestoreFromTray callers want the
+        // dashboard too: a finished scan with threats, the USB prompt, a late
+        // VirusTotal verdict. Done on the way out rather than in RestoreFromTray so
+        // a tray double-click on an already-open window doesn't yank the page out
+        // from under the user.
+        void HideToTray()
+        {
+            if (pages != null) ShowPage(0);
+            Hide();
+        }
+
         void RestoreFromTray()
         {
             ShowInTaskbar = true; // recreates the handle while still minimized
@@ -1780,7 +1793,7 @@ namespace AVUI
             {
                 // The close button minimizes to tray; actual exit is via the tray menu
                 e.Cancel = true;
-                Hide();
+                HideToTray();
                 return;
             }
             if (netAvailabilityHandler != null)
