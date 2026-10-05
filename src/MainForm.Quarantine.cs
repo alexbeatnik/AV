@@ -50,15 +50,27 @@ namespace AVUI
         // (see DownloadYaraForgeRules).
         internal static void XorStream(Stream src, string dst)
         {
-            using (var fout = new FileStream(dst, FileMode.CreateNew, FileAccess.Write))
+            bool created = false;
+            try
             {
-                var buf = new byte[81920];
-                int n;
-                while ((n = src.Read(buf, 0, buf.Length)) > 0)
+                using (var fout = new FileStream(dst, FileMode.CreateNew, FileAccess.Write))
                 {
-                    for (int i = 0; i < n; i++) buf[i] ^= 0xFF;
-                    fout.Write(buf, 0, n);
+                    created = true;
+                    var buf = new byte[81920];
+                    int n;
+                    while ((n = src.Read(buf, 0, buf.Length)) > 0)
+                    {
+                        for (int i = 0; i < n; i++) buf[i] ^= 0xFF;
+                        fout.Write(buf, 0, n);
+                    }
                 }
+            }
+            catch
+            {
+                // An interrupted copy is not a valid quarantined file (or rule
+                // store). Keep an existing destination if CreateNew rejected it.
+                if (created) { try { File.Delete(dst); } catch { } }
+                throw;
             }
         }
 

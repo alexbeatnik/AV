@@ -54,15 +54,15 @@ namespace AVUI
     // commercial AV dashboards (Bitdefender/Norton-class) use on dark themes
     static class Theme
     {
-        public static readonly Color Bg        = Color.FromArgb(16, 18, 24);    // window background
-        public static readonly Color Card      = Color.FromArgb(30, 33, 42);    // cards
-        public static readonly Color CardLine  = Color.FromArgb(48, 52, 64);    // thin card border
-        public static readonly Color LogBg     = Color.FromArgb(12, 13, 18);    // log/list background
-        public static readonly Color Text      = Color.FromArgb(232, 234, 240);
-        public static readonly Color Muted     = Color.FromArgb(148, 155, 170);
-        public static readonly Color Accent    = Color.FromArgb(66, 133, 255);  // blue
-        public static readonly Color AccentHot = Color.FromArgb(108, 160, 255);
-        public static readonly Color Good      = Color.FromArgb(48, 199, 110);  // green shield
+        public static readonly Color Bg        = Color.FromArgb(14, 18, 29);    // window background
+        public static readonly Color Card      = Color.FromArgb(26, 33, 48);    // cards
+        public static readonly Color CardLine  = Color.FromArgb(50, 63, 83);    // thin card border
+        public static readonly Color LogBg     = Color.FromArgb(18, 24, 36);    // log/list background
+        public static readonly Color Text      = Color.FromArgb(239, 244, 251);
+        public static readonly Color Muted     = Color.FromArgb(159, 174, 195);
+        public static readonly Color Accent    = Color.FromArgb(55, 119, 238);  // blue
+        public static readonly Color AccentHot = Color.FromArgb(86, 151, 255);
+        public static readonly Color Good      = Color.FromArgb(52, 204, 145);  // green shield
         public static readonly Color Warn      = Color.FromArgb(232, 197, 71);  // yellow (values)
         public static readonly Color Danger    = Color.FromArgb(239, 68, 68);
         public static readonly Color DangerHot = Color.FromArgb(248, 113, 113);
@@ -70,7 +70,7 @@ namespace AVUI
         public static readonly Color Btn       = Color.FromArgb(216, 219, 226); // light buttons
         public static readonly Color BtnHot    = Color.FromArgb(233, 235, 240);
         public static readonly Color BtnText   = Color.FromArgb(51, 54, 62);
-        public const int Radius = 12; // card corner radius
+        public const int Radius = 16; // card corner radius
 
         public static GraphicsPath Round(RectangleF r, float rad)
         {
@@ -96,10 +96,11 @@ namespace AVUI
                     g.FillPath(b, path);
             using (var path = Round(r, Radius))
             {
-                using (var b = new SolidBrush(Card)) g.FillPath(b, path);
+                using (var b = new LinearGradientBrush(r, Color.FromArgb(32, 41, 58), Card,
+                    LinearGradientMode.Vertical)) g.FillPath(b, path);
                 using (var pen = new Pen(CardLine)) g.DrawPath(pen, path);
             }
-            using (var hl = new Pen(Color.FromArgb(16, 255, 255, 255)))
+            using (var hl = new Pen(Color.FromArgb(25, 255, 255, 255)))
                 g.DrawLine(hl, r.X + Radius, r.Y + 1, r.Right - Radius, r.Y + 1);
         }
 

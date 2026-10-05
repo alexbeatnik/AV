@@ -29,7 +29,9 @@ namespace AVUI
             Text = text;
             Back = back; Hover = hover; TextColor = fore;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint
-                | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+                | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw
+                | ControlStyles.Selectable, true);
+            TabStop = true;
             Height = 36;
             Width = 150;
             Font = new Font("Segoe UI Semibold", 9f);
@@ -37,9 +39,29 @@ namespace AVUI
             Margin = new Padding(0, 4, 8, 4);
             MouseEnter += delegate { over = true; Invalidate(); };
             MouseLeave += delegate { over = false; down = false; Invalidate(); };
-            MouseDown += delegate { down = true; Invalidate(); };
+            MouseDown += delegate { Focus(); down = true; Invalidate(); };
             MouseUp += delegate { down = false; Invalidate(); };
         }
+
+        protected override bool IsInputKey(Keys keyData)
+        {
+            Keys key = keyData & Keys.KeyCode;
+            return key == Keys.Space || key == Keys.Enter || base.IsInputKey(keyData);
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (Enabled && (e.KeyCode == Keys.Space || e.KeyCode == Keys.Enter))
+            {
+                PerformClick();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+            base.OnKeyDown(e);
+        }
+
+        protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
+        protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Invalidate(); }
 
         public DialogResult DialogResult
         {
@@ -67,14 +89,24 @@ namespace AVUI
             // disabled = dark surface with muted text (not a bright gray slab)
             Color c = !Enabled ? Color.FromArgb(36, 39, 48) : (down ? Back : (over ? Hover : Back));
             using (var path = Theme.Round(new RectangleF(0.5f, 0.5f, Width - 1, Height - 1), CardStyle ? 14 : 9))
-            using (var b = new SolidBrush(c))
             {
-                g.FillPath(b, path);
+                if (CardStyle && Enabled)
+                {
+                    Color bottom = Color.FromArgb(Math.Max(0, c.R - 12),
+                        Math.Max(0, c.G - 12), Math.Max(0, c.B - 10));
+                    using (var b = new LinearGradientBrush(ClientRectangle, c, bottom,
+                        LinearGradientMode.Vertical)) g.FillPath(b, path);
+                }
+                else using (var b = new SolidBrush(c)) g.FillPath(b, path);
                 // hairline border gives card-style tiles (and disabled buttons) definition
                 if (CardStyle || !Enabled)
                     using (var pen = new Pen(over && Enabled ? Theme.Accent : Theme.CardLine))
                         g.DrawPath(pen, path);
             }
+            if (Focused && ShowFocusCues)
+                using (var focus = Theme.Round(new RectangleF(2.5f, 2.5f, Width - 5, Height - 5), CardStyle ? 12 : 7))
+                using (var pen = new Pen(Theme.AccentHot, 2f))
+                    g.DrawPath(pen, focus);
 
             Color fg = Enabled ? TextColor : Theme.Muted;
             // NoPrefix: button labels may contain a literal "&" ("Restore & exclude")
@@ -90,7 +122,7 @@ namespace AVUI
                 // icon scales with the tile so big dashboard tiles get big glyphs
                 float iconSize = Math.Min(Width * 0.30f, Height * 0.36f);
                 var iconRect = new RectangleF((Width - iconSize) / 2f, Height * 0.16f, iconSize, iconSize);
-                Icon(g, iconRect, fg);
+                Icon(g, iconRect, Back == Theme.Card && Enabled ? Theme.AccentHot : fg);
                 int textTop = (int)(iconRect.Bottom + 10);
                 if (string.IsNullOrEmpty(SubText))
                 {
@@ -144,7 +176,9 @@ namespace AVUI
         public Toggle(string text)
         {
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint
-                | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+                | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw
+                | ControlStyles.Selectable, true);
+            TabStop = true;
             Height = 26;
             Cursor = Cursors.Hand;
             Text = text;
@@ -158,6 +192,26 @@ namespace AVUI
             };
             Click += delegate { Checked = !Checked; };
         }
+
+        protected override bool IsInputKey(Keys keyData)
+        {
+            Keys key = keyData & Keys.KeyCode;
+            return key == Keys.Space || key == Keys.Enter || base.IsInputKey(keyData);
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (Enabled && (e.KeyCode == Keys.Space || e.KeyCode == Keys.Enter))
+            {
+                Checked = !Checked;
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+            base.OnKeyDown(e);
+        }
+
+        protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
+        protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Invalidate(); }
 
         public bool Checked
         {
@@ -200,10 +254,14 @@ namespace AVUI
             g.SmoothingMode = SmoothingMode.AntiAlias;
             const int tw = 40, th = 20; // track
             int ty = (Height - th) / 2;
-            Color track = isOn ? Theme.Accent : Color.FromArgb(75, 80, 92);
+            Color track = isOn ? Theme.Accent : Theme.CardLine;
             using (var path = Theme.Round(new RectangleF(0, ty, tw, th), th / 2f))
             using (var b = new SolidBrush(track))
                 g.FillPath(b, path);
+            if (Focused && ShowFocusCues)
+                using (var path = Theme.Round(new RectangleF(1, ty + 1, tw - 2, th - 2), th / 2f - 1))
+                using (var pen = new Pen(Theme.AccentHot, 2f))
+                    g.DrawPath(pen, path);
             float kx = 3 + knob * (tw - th); // ranges 3..23
             using (var b = new SolidBrush(Color.White))
                 g.FillEllipse(b, kx, ty + 3, th - 6, th - 6);
@@ -364,7 +422,9 @@ namespace AVUI
             Text = text;
             Icon = icon;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint
-                | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+                | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw
+                | ControlStyles.Selectable, true);
+            TabStop = true;
             Font = new Font("Segoe UI Semibold", 9.5f);
             Height = 44;
             Cursor = Cursors.Hand;
@@ -372,6 +432,26 @@ namespace AVUI
             MouseEnter += delegate { hover = true; Invalidate(); };
             MouseLeave += delegate { hover = false; Invalidate(); };
         }
+
+        protected override bool IsInputKey(Keys keyData)
+        {
+            Keys key = keyData & Keys.KeyCode;
+            return key == Keys.Space || key == Keys.Enter || base.IsInputKey(keyData);
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Space || e.KeyCode == Keys.Enter)
+            {
+                OnClick(EventArgs.Empty);
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+            base.OnKeyDown(e);
+        }
+
+        protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
+        protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Invalidate(); }
 
         public void SetActive(bool a) { Active = a; Invalidate(); }
 
@@ -395,6 +475,10 @@ namespace AVUI
                 using (var path = Theme.Round(pill, pill.Height / 2f))
                 using (var b = new SolidBrush(Color.FromArgb(13, 255, 255, 255)))
                     g.FillPath(b, path);
+            if (Focused && ShowFocusCues)
+                using (var path = Theme.Round(pill, pill.Height / 2f))
+                using (var pen = new Pen(Theme.AccentHot, 1.5f))
+                    g.DrawPath(pen, path);
             Color c = Active ? Theme.AccentHot : (hover ? Theme.Text : Theme.Muted);
             var iconRect = new RectangleF(15, (Height - 8 - 18) / 2f, 18, 18);
             if (Icon != null) Icon(g, iconRect, c);
@@ -455,20 +539,43 @@ namespace AVUI
             using (var capF = new Font("Segoe UI Semibold", 8f))
             using (var valF = new Font("Segoe UI Semibold", 13.5f)) // values carry the row — keep them prominent
             {
-                float x = 20;
+                if (Captions.Length == 0) return;
+                int right = Width - 18;
+                foreach (Control child in Controls)
+                    if (child.Visible && child.Dock == DockStyle.Right)
+                        right = Math.Min(right, child.Left - 12);
+                int available = Math.Max(0, right - 20);
+                int gap = 18;
+                int[] widths = new int[Captions.Length];
+                int preferred = gap * (Captions.Length - 1);
+                for (int i = 0; i < Captions.Length; i++)
+                {
+                    string val = i < Values.Length ? Values[i] : "";
+                    widths[i] = Math.Max(TextRenderer.MeasureText(g, Captions[i].ToUpperInvariant(), capF).Width,
+                        TextRenderer.MeasureText(g, val, valF).Width) + 4;
+                    preferred += widths[i];
+                }
+                float scale = preferred > available && preferred > gap * (Captions.Length - 1)
+                    ? (float)Math.Max(0, available - gap * (Captions.Length - 1))
+                        / (preferred - gap * (Captions.Length - 1)) : 1f;
+                int x = 20;
                 for (int i = 0; i < Captions.Length; i++)
                 {
                     string cap = Captions[i].ToUpperInvariant();
                     string val = i < Values.Length ? Values[i] : "";
-                    int cell = Math.Max(TextRenderer.MeasureText(g, cap, capF).Width,
-                                        TextRenderer.MeasureText(g, val, valF).Width);
-                    TextRenderer.DrawText(g, cap, capF, new Rectangle((int)x, 11, cell + 4, 15),
-                        Theme.Muted, TextFormatFlags.Left | TextFormatFlags.NoPadding);
+                    int cell = Math.Max(0, (int)(widths[i] * scale));
+                    TextRenderer.DrawText(g, cap, capF, new Rectangle(x, 11, cell, 15),
+                        Theme.Muted, TextFormatFlags.Left | TextFormatFlags.NoPadding
+                        | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
                     Color vc = ValueColors != null && i < ValueColors.Length && !ValueColors[i].IsEmpty
                         ? ValueColors[i] : Theme.Text;
-                    TextRenderer.DrawText(g, val, valF, new Rectangle((int)x, 28, cell + 4, 28),
-                        vc, TextFormatFlags.Left | TextFormatFlags.NoPadding);
-                    x += cell + 28;
+                    TextRenderer.DrawText(g, val, valF, new Rectangle(x, 28, cell, 28),
+                        vc, TextFormatFlags.Left | TextFormatFlags.NoPadding
+                        | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                    if (i < Captions.Length - 1)
+                        using (var separator = new Pen(Color.FromArgb(37, Theme.Muted)))
+                            g.DrawLine(separator, x + cell + gap / 2, 18, x + cell + gap / 2, Height - 17);
+                    x += cell + gap;
                 }
             }
         }
@@ -493,7 +600,7 @@ namespace AVUI
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.Clear(BackColor);
             float cx = Width / 2f, cy = Height / 2f;
-            Ico.ShieldIcon(g, new RectangleF(cx - 26, cy - 78, 52, 52), Color.FromArgb(70, 76, 92));
+            Ico.ShieldIcon(g, new RectangleF(cx - 26, cy - 78, 52, 52), Theme.CardLine);
             using (var tf = new Font("Segoe UI Semibold", 12f))
                 TextRenderer.DrawText(g, Title, tf, new Rectangle(0, (int)cy - 12, Width, 30),
                     Theme.Text, TextFormatFlags.HorizontalCenter | TextFormatFlags.Top);
@@ -522,9 +629,12 @@ namespace AVUI
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
             Theme.PaintCard(g, Width, Height);
+            using (var accent = new SolidBrush(Theme.Accent))
+            using (var mark = Theme.Round(new RectangleF(17, 16, 3, 19), 1.5f))
+                g.FillPath(accent, mark);
             using (var f = new Font("Segoe UI Semibold", 9.5f))
             using (var b = new SolidBrush(Theme.Muted))
-                g.DrawString(HeaderText.ToUpperInvariant(), f, b, 16, 15);
+                g.DrawString(HeaderText.ToUpperInvariant(), f, b, 29, 15);
         }
     }
 
