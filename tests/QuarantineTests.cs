@@ -9,6 +9,29 @@ namespace AVUI.Tests
 {
     static class XorCopyTests
     {
+        sealed class FailingReadStream : MemoryStream
+        {
+            int reads;
+            public FailingReadStream(byte[] bytes) : base(bytes) { }
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                if (reads++ > 0) throw new IOException("read interrupted");
+                return base.Read(buffer, offset, 1);
+            }
+        }
+
+        public static void TestInterruptedCopyRemovesPartialDestination()
+        {
+            using (var tmp = new TempDir())
+            using (var source = new FailingReadStream(new byte[] { 1, 2, 3 }))
+            {
+                string destination = tmp.File("partial.quar");
+                Assert.Throws<IOException>(delegate { MainForm.XorStream(source, destination); },
+                    "failed source read");
+                Assert.False(File.Exists(destination), "partial quarantine file removed");
+            }
+        }
+
         public static void TestRoundTripRestoresOriginalBytes()
         {
             using (var tmp = new TempDir())
